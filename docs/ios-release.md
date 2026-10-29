@@ -14,7 +14,7 @@ Same model as Android: free, ads between runs, one-time purchase removes them fo
 1. **Business > Agreements**: sign the **Paid Apps** agreement and fill in bank + tax. Purchases (even test ones) don't work until this is done.
 2. **Apps > + New App**: name "Endless Backrooms", bundle ID `com.syafiqdev.endlessbackrooms` (create it under Certificates, Identifiers & Profiles first; same ID goes in Unity).
 3. In the app, **Monetization > In-App Purchases > +**: type **Non-Consumable**, product ID `remove_ads` (must match the code), price **RM 9.90**, name "Remove Ads". Add a screenshot of the button for review.
-4. **App Privacy**: Unity Ads collects device ID and ad data for third-party advertising. Declare "Identifiers: Device ID" and "Usage Data: Advertising Data", used for Third-Party Advertising, not linked to the user. A **privacy policy URL** is required (a short page on the Vercel site is fine).
+4. **App Privacy**: follow Google's AdMob guide for the App Store privacy form ("Google Mobile Ads SDK data disclosure"). In short: Identifiers (Device ID), Usage Data (Product Interaction, Advertising Data), Diagnostics, Location (coarse), used for Third-Party Advertising and Analytics. A **privacy policy URL** is required (a short page on the Vercel site is fine).
 5. **Age rating**: horror themes, no violence shown, so expect 12+.
 
 ## 3. Unity settings (File > Build Profiles > iOS > Switch Platform, then Player Settings)
@@ -23,11 +23,11 @@ Same model as Android: free, ads between runs, one-time purchase removes them fo
 - **Target Device: iPhone Only**, so App Review doesn't ask for iPad screenshots.
 - **Signing Team ID**: your Apple team ID (developer.apple.com > Membership), **Automatically Sign** on.
 - **Requires Persistent WiFi** off, orientation **Landscape Left + Right**.
-- In the Unity Ads dashboard, use the **iOS Game ID** and iOS ad unit names (they differ from Android).
+- Ads are Google AdMob (shared with Android). In admob.google.com add an **iOS app** (separate from Android) and an interstitial ad unit. Put the iOS **App ID** in **Assets > Google Mobile Ads > Settings** and the ad unit ID in `IosInterstitial` at the top of `Monetization.cs`. Until then Google's test ads show.
 
-`Assets/Backrooms/Editor/IosPostBuild.cs` fills Info.plist after every build: no-encryption flag (skips the export question on each upload) and Unity Ads' SKAdNetwork ID.
+`Assets/Backrooms/Editor/IosPostBuild.cs` sets the no-encryption flag in Info.plist after every build (skips the export question on each upload). The AdMob plugin adds its own App ID and SKAdNetwork IDs.
 
-**No tracking prompt (ATT).** The game doesn't ask "Allow tracking?", so iPhone ads are non-personalised. That's simpler and passes review; it pays a bit less per ad. Can be added later if ad income matters.
+**No tracking prompt (ATT).** In the AdMob dashboard, leave the "IDFA explainer" message off. The game doesn't ask "Allow tracking?", so iPhone ads are non-personalised. That's simpler and passes review; it pays a bit less per ad. Can be added later if ad income matters.
 
 ## 4. Build and test
 
@@ -43,7 +43,7 @@ Same model as Android: free, ads between runs, one-time purchase removes them fo
 
 ## App Review checklist
 
-- A **Restore Purchases** button is visible (Apple rejects non-consumable purchases without one).
+- The **RESTORE** button is on the start screen (Apple rejects non-consumable purchases without one).
 - The purchase is attached to the version you submit.
 - Privacy policy URL works.
 - No mentions of Android or Google Play anywhere in the app or screenshots.
