@@ -17,6 +17,7 @@ A procedural backrooms maze you can walk around on your phone. Every run picks a
 | `RoomVariants.cs` | 8 room interiors plus a Corridor (8) used on straight runs to make long narrow hallways: from your 2022 prefabs 0 Empty, 1 Multisections (partition stubs), 2 Hallway Left, 3 Hallway Right; plus 4 Pillar Grid, 5 Lone Slab, 6 Doorway, 7 Zig-Zag. (The cross-pillar Segmented room was dropped.) Half the rooms are empty, open halls always are; the rest pick one at random with a random rotation. |
 | `Props.cs` | Rare furniture (each run rolls between 1 in 200 and 1 in 300 rooms): wooden chair, stool, small table, filing cabinet, stop sign, sofa, fridge, granny chair, built from boxes. A quarter come out slightly too big. About half stand normally; the rest are tilted and sunk into the floor, hanging upside down from the ceiling, or half inside a wall. Change `MinOdds`/`MaxOdds` to make them more or less common. |
 | Locked runs | Half the runs the exit door is LOCKED. The key is hidden in a key item (office desk, drawer unit or cardboard box, see `Props.KeyItems`) against a wall in the room farthest from both the start and the exit. Walk up to it and press SEARCH (or E) to get the KEY. |
+| `Editor/IosPostBuild.cs` | iOS only: fills Info.plist after each build (no-encryption flag). See `docs/ios-release.md` for the whole App Store release. |
 | `Editor/MazeSelfCheck.cs` | Menu **Backrooms > Run Maze Self-Check**: checks 200 mazes are fully connected and tiles line up. |
 
 ## Setup (about 5 minutes)
