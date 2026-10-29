@@ -117,7 +117,7 @@ const CORRIDOR = 8;
 const rotate = (b, k) => { for (let i = 0; i < k; i++) b = [-b[1], b[0], b[3], b[2]]; return b; };
 // Rare furniture from Props.cs: parts are [x, y, z, half x, half y, half z, colour, spin about z]; colour 0 wood, 1 metal, 2 red, 3 white, 4 dark.
 // Chair, stool, small table, filing cabinet, stop sign.
-const PROP_CHANCE = 1 / 300; // per room
+const PROP_ODDS = [200, 300]; // each run rolls a chance between 1 in 200 and 1 in 300 rooms
 const PROPS = [
   [[0, 0.45, 0, 0.21, 0.025, 0.2, 0], [-0.18, 0.225, 0.17, 0.02, 0.225, 0.02, 0], [0.18, 0.225, 0.17, 0.02, 0.225, 0.02, 0], [-0.18, 0.225, -0.17, 0.02, 0.225, 0.02, 0], [0.18, 0.225, -0.17, 0.02, 0.225, 0.02, 0], [-0.18, 0.72, -0.18, 0.02, 0.25, 0.02, 0], [0.18, 0.72, -0.18, 0.02, 0.25, 0.02, 0], [0, 0.82, -0.18, 0.2, 0.08, 0.015, 0]],
   [[0, 0.6, 0, 0.17, 0.025, 0.17, 0], [-0.13, 0.3, 0.13, 0.02, 0.3, 0.02, 0], [0.13, 0.3, 0.13, 0.02, 0.3, 0.02, 0], [-0.13, 0.3, -0.13, 0.02, 0.3, 0.02, 0], [0.13, 0.3, -0.13, 0.02, 0.3, 0.02, 0], [0, 0.22, 0.13, 0.13, 0.012, 0.012, 0], [0, 0.22, -0.13, 0.13, 0.012, 0.012, 0]],
@@ -175,6 +175,7 @@ function generate() {
 
 const sub = (a, b) => a.map((x, i) => x - b[i]), cross = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]], dot = (a, b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
 function buildMesh(m, exit) {
+  const propChance = 1 / (PROP_ODDS[0] + Math.random() * (PROP_ODDS[1] - PROP_ODDS[0])); // new odds every run
   const V = [], I = [], solids = m.map(r => r.map(() => [])); let o = 0;
   const quad = (a, b, c, d, n, v = V, ix = I) => {
     if (dot(cross(sub(b, a), sub(c, a)), n) < 0) [b, d] = [d, b];
@@ -199,7 +200,7 @@ function buildMesh(m, exit) {
     const x0 = x*S, x1 = x0+S, z0 = z*S, z1 = z0+S, open = m[x][z];
     // straight runs often become narrow corridors; otherwise mostly empty, and halls always empty
     let variant, turn;
-    const isExit = x === exit[0] && z === exit[1], prop = !isExit && Math.random() < PROP_CHANCE; // prop and exit rooms stay empty so nothing blocks them
+    const isExit = x === exit[0] && z === exit[1], prop = !isExit && Math.random() < propChance; // prop and exit rooms stay empty so nothing blocks them
     if (prop || isExit) { variant = 0; turn = 0; }
     else if ((open === 5 || open === 10) && Math.random() < 0.6) { variant = CORRIDOR; turn = open === 5 ? 0 : 1; }
     else { variant = open === 15 || Math.random() < 0.5 ? 0 : 1 + rnd(CORRIDOR - 1); turn = rnd(4); }

@@ -135,7 +135,7 @@ public class BackroomsGame : MonoBehaviour
             tris.AddRange(new[] { i, i + 1, i + 2, i, i + 2, i + 3 });
         }
 
-        float s = cellSize, H = wallHeight;
+        float s = cellSize, H = wallHeight, propChance = 1 / Random.Range(Props.MinOdds, Props.MaxOdds); // new odds every run
         const float WallHalf = 0.2f, Trim = 0.02f, TrimHeight = 0.1f; // chunky 40 cm walls like the footage
         void Wall(Vector3 a, Vector3 b, Vector3 n)
         {
@@ -153,7 +153,7 @@ public class BackroomsGame : MonoBehaviour
                 // Otherwise mostly empty rooms; open crossings (halls) always stay empty so they read as big spaces.
                 int open = m[x, z], variant, turn;
                 bool isExit = (x, z) == exit;
-                bool prop = !isExit && Random.value < Props.Chance; // prop and exit rooms are left empty so nothing blocks them
+                bool prop = !isExit && Random.value < propChance; // prop and exit rooms are left empty so nothing blocks them
                 if (prop || isExit) { variant = 0; turn = 0; }
                 else if ((open == (Maze.N | Maze.S) || open == (Maze.E | Maze.W)) && Random.value < 0.6f)
                 {

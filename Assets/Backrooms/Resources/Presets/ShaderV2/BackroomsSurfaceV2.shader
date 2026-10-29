@@ -112,12 +112,12 @@ Shader "Backrooms/Surface V2"
                 float h = hash(cell * 7.13 + 1.7);
 
                 // Low-power zones: big patches of rooms where the lights run dim, warm and unsteady.
-                float power = smoothstep(0.3, 0.6, vnoise(cell * 0.35 + _Seed));
+                float power = smoothstep(0.2, 0.32, vnoise(cell * 0.35 + _Seed)); // ~1 room in 8 is in a bad zone
 
-                // Light state: ~5% dead, ~10% flickering (much more in low power), the rest humming.
+                // Light state: steady almost everywhere (~3% dead, ~1% flickering); about half flicker inside bad-power zones.
                 float on = 0.97 + 0.03 * sin(t * 100 + h * 50);
-                if (h < 0.05) on = 0.35;
-                else if (h < lerp(0.45, 0.15, power)) on = hash(float2(floor(t * 14 + h * 97), h)) > 0.35 ? 1 : 0.45;
+                if (h < 0.03) on = 0.35;
+                else if (h < lerp(0.5, 0.01, power)) on = hash(float2(floor(t * 14 + h * 97), h)) > 0.35 ? 1 : 0.45;
                 on *= lerp(0.3, 1, power);
 
                 // Ceiling panels: one slot per 3 x 3 tiles (9 per cell), but each slot rolls its own fitting so the
@@ -226,6 +226,8 @@ Shader "Backrooms/Surface V2"
 
                 float3 lightCol = lerp(float3(1.0, 0.75, 0.45), float3(1.0, 0.94, 0.70), power); // low power runs warm
                 float3 col = albedo * lightCol * (0.45 * lerp(0.8, 1, on) * lerp(0.35, 1, power) + direct * on * 1.6) * ao + lightCol * emissive * on;
+                // Dark rooms: ~1 room in 20, in small clusters, with the power nearly gone (10% brightness).
+                col *= lerp(0.1, 1, smoothstep(0.14, 0.16, vnoise(cell * 0.5 + _Seed * 1.7 + 50)));
                 col = 1 - exp(-col * 1.8); // brighter exposure, soft shoulder: washed-out highlights instead of hard clipping
                 col = pow(max(col, 0), float3(0.9, 0.97, 1.25)); // camcorder grade: warm yellow rather than green
                 col = lerp(col, float3(1.0, 0.12, 0.08), letters); // on emergency power: ignores flicker and low power

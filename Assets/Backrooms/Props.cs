@@ -4,7 +4,7 @@ using UnityEngine;
 // Prop space: origin on the floor at the item's centre, y up, front is +z. Metres.
 public static class Props
 {
-    public const float Chance = 1f / 300; // per room
+    public const float MinOdds = 200, MaxOdds = 300; // each run rolls a chance between 1 in 200 and 1 in 300 rooms
     public const int Wood = 0, Metal = 1, Red = 2, White = 3, Dark = 4; // colours, see the BackroomsSurface shaders in Resources/Presets
     public const int Sign = 256; // the shader writes a glowing red EXIT on this face
 
