@@ -59,8 +59,13 @@ public class BackroomsGame : MonoBehaviour
     void Update()
     {
         Shader.SetGlobalFloat("_Debug", debugMode ? 1 : 0); // read by VhsCamera
-        if (Keyboard.current != null && Keyboard.current.lKey.wasPressedThisFrame) NextLook();
-        if (Keyboard.current != null && Keyboard.current.nKey.wasPressedThisFrame) ToggleNightVision();
+        var kb = Keyboard.current; var pad = Gamepad.current; // pad: Steam Deck / controller
+        if (kb != null && kb.lKey.wasPressedThisFrame || pad != null && pad.rightShoulder.wasPressedThisFrame) NextLook();
+        if (kb != null && kb.nKey.wasPressedThisFrame || pad != null && pad.buttonNorth.wasPressedThisFrame) ToggleNightVision();
+#if UNITY_STANDALONE && !UNITY_EDITOR
+        if (kb != null && kb.escapeKey.wasPressedThisFrame) Application.Quit();
+        Cursor.lockState = Started ? CursorLockMode.Locked : CursorLockMode.None; // desktop: mouse look once a run starts, free cursor on the start screen
+#endif
         Shader.SetGlobalFloat("_NV", NightVision ? 1 : 0);
         if (look != Look)
         {
@@ -83,7 +88,8 @@ public class BackroomsGame : MonoBehaviour
         if (PlayerController.Hidden < 0)
             for (int i = 0; i < HideSpots.Count; i++)
                 if (new Vector2(p.x - HideSpots[i].step.x, p.z - HideSpots[i].step.z).sqrMagnitude < 1f) NearSpot = i;
-        if (Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame) Act();
+        if (kb != null && kb.eKey.wasPressedThisFrame || Started && pad != null && pad.buttonSouth.wasPressedThisFrame) Act();
+        if (!Started && pad != null) { if (pad.buttonSouth.wasPressedThisFrame) Begin(false); else if (pad.buttonWest.wasPressedThisFrame) Begin(true); } // A = NORMAL, X = EASY
     }
 
     void NewRun()

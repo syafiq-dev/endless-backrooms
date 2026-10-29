@@ -2,11 +2,12 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 // Phone: drag on the left half to walk, drag on the right half to look.
-// Editor/desktop: WASD to walk, hold right mouse button to look.
+// Editor: WASD to walk, hold right mouse button to look. Desktop build (Steam): mouse look is always on.
+// Controller (Steam Deck): left stick walk, right stick look, click the left stick to toggle running.
 [RequireComponent(typeof(CharacterController))]
 public class PlayerController : MonoBehaviour
 {
-    public float speed = 3f, runSpeed = 5f, mouseLook = 0.15f, touchLook = 0.15f;
+    public float speed = 3f, runSpeed = 5f, mouseLook = 0.15f, touchLook = 0.15f, padLook = 150f; // padLook in degrees per second
     public float lookSpring = 90f, lookDamp = 15f; // camera chases your aim on a spring (slight overshoot) instead of snapping, like a handheld camcorder
     [Range(0, 2)] public float sway = 1f; // handheld camcorder wobble; 0 = tripod-steady
 
@@ -76,7 +77,15 @@ public class PlayerController : MonoBehaviour
                                 (kb.wKey.isPressed ? 1 : 0) - (kb.sKey.isPressed ? 1 : 0));
 
         var mouse = Mouse.current;
-        if (mouse != null && mouse.rightButton.isPressed) look += mouse.delta.ReadValue() * mouseLook;
+        if (mouse != null && (mouse.rightButton.isPressed || Cursor.lockState == CursorLockMode.Locked)) look += mouse.delta.ReadValue() * mouseLook;
+
+        var pad = Gamepad.current;
+        if (pad != null)
+        {
+            move += pad.leftStick.ReadValue();
+            look += pad.rightStick.ReadValue() * padLook * Time.deltaTime;
+            if (pad.leftStickButton.wasPressedThisFrame) RunHeld = !RunHeld;
+        }
 
         var ts = Touchscreen.current;
         if (ts != null)
