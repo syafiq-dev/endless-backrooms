@@ -33,7 +33,7 @@ Same model as Android: free, ads between runs, one-time purchase removes them fo
 
 1. Unity **Build** into a folder (e.g. `Builds/iOS`). It makes an Xcode project.
 2. Open `Unity-iPhone.xcodeproj`, plug in the iPhone, pick it at the top, press **Run**. First time: on the phone, Settings > General > VPN & Device Management > trust your developer profile.
-3. Test the purchase with a **Sandbox account** (App Store Connect > Users and Access > Sandbox). On the iPhone: Settings > App Store > Sandbox Account. Buy, delete the app, reinstall, tap **Restore Purchases**: ads must stay off.
+3. Test the purchase with a **Sandbox account** (App Store Connect > Users and Access > Sandbox). On the iPhone: Settings > App Store > Sandbox Account. Buy, delete the app, reinstall, tap **RESTORE**: ads must stay off.
 
 ## 5. Upload and submit
 
