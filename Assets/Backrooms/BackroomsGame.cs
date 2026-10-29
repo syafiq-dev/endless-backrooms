@@ -12,7 +12,7 @@ public class BackroomsGame : MonoBehaviour
     [Range(0, 1)] public float loopChance = 0.3f; // higher = more open rooms, lower = tighter corridors
     public Color fogColor = new Color(0.50f, 0.48f, 0.20f);
     public float fogDensity = 0.035f;
-    [Range(1, 3)] public int look = 2; // shader preset ShaderV1..V3 (Resources/Presets); L or the LOOK button cycles
+    [Range(1, 5)] public int look = 2; // shader preset ShaderV1..V5 (Resources/Presets); each run picks one at random, L or the LOOK button cycles
     public static int Look { get; private set; } = 2; // read by VhsCamera
     public static float LookChangedAt = -10;
     public bool debugMode = false; // shows (DEBUG MODE) on the VHS stamp and each room's variant number on its floor
@@ -54,6 +54,7 @@ public class BackroomsGame : MonoBehaviour
     void NewRun()
     {
         if (level) { Destroy(level); Destroy(mesh); }
+        look = Random.Range(1, 6); // a random look every run (Update swaps it and pops up the name)
         Shader.SetGlobalFloat("_Seed", Random.Range(0f, 100f)); // moves the low-power zones each run
         int grow = growPerRun * run++;
         var m = Maze.Generate(Mathf.Min(width + grow, maxSize), Mathf.Min(depth + grow, maxSize), Random.Range(int.MinValue, int.MaxValue), loopChance, out var start, out var exit);
@@ -70,7 +71,7 @@ public class BackroomsGame : MonoBehaviour
         cc.enabled = true;
     }
 
-    public void NextLook() => look = look % 3 + 1;
+    public void NextLook() => look = look % 5 + 1;
 
     Vector3 CellCenter((int x, int z) c) => new Vector3((c.x + 0.5f) * cellSize, 0, (c.z + 0.5f) * cellSize);
 

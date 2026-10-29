@@ -1,5 +1,5 @@
 # Builds backrooms-web.html: the browser version, with its shaders generated from the Unity shaders.
-# All look presets (Resources/Presets/ShaderV1..V3) are built; the LOOK button cycles them.
+# All look presets (Resources/Presets/ShaderV1..V5) are built; the LOOK button cycles them.
 # Run: python3 build.py  (from anywhere)
 import base64, os, re
 
@@ -24,7 +24,7 @@ def port(surface, vhs):
 
 uri = lambda f: 'data:image/jpeg;base64,' + base64.b64encode(open(os.path.join(res, f), 'rb').read()).decode()
 html = open(os.path.join(here, 'template.html')).read()
-LOOKS = 3
+LOOKS = 5
 # each look gets its own copy of the two fragment shader scripts (ids fs1, vhsfs1, fs2, ...)
 for sid, mark in (('fs', '/*SHADE*/'), ('vhsfs', '/*VHS*/')):
     block = re.search(r'<script id="%s" .*?</script>\n' % sid, html, re.S).group(0)

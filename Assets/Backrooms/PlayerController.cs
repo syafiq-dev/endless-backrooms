@@ -7,17 +7,19 @@ using UnityEngine.InputSystem;
 public class PlayerController : MonoBehaviour
 {
     public float speed = 3f, mouseLook = 0.15f, touchLook = 0.15f;
+    public float lookSpring = 90f, lookDamp = 15f; // camera chases your aim on a spring (slight overshoot) instead of snapping, like a handheld camcorder
     [Range(0, 2)] public float sway = 1f; // handheld camcorder wobble; 0 = tripod-steady
 
     CharacterController cc;
     Transform cam;
-    float pitch, camY, bob, walk;
+    float pitch, camY, bob, walk, aimYaw, yaw, yawSpin, pitchView, pitchSpin;
 
     void Awake()
     {
         cc = GetComponent<CharacterController>();
         cam = GetComponentInChildren<Camera>().transform;
         camY = cam.localPosition.y;
+        aimYaw = yaw = transform.eulerAngles.y;
     }
 
     void Update()
@@ -45,15 +47,20 @@ public class PlayerController : MonoBehaviour
             }
 
         move = Vector2.ClampMagnitude(move, 1f);
-        transform.Rotate(0, look.x, 0);
+        aimYaw += look.x;
         pitch = Mathf.Clamp(pitch - look.y, -80f, 80f);
+        if (Mathf.Abs(Mathf.DeltaAngle(transform.eulerAngles.y, yaw)) > 0.01f) aimYaw = yaw = transform.eulerAngles.y; // something else turned us (new run): snap
+        float dt = Mathf.Min(Time.deltaTime, 0.05f);
+        yawSpin += (lookSpring * (aimYaw - yaw) - lookDamp * yawSpin) * dt; yaw += yawSpin * dt;
+        pitchSpin += (lookSpring * (pitch - pitchView) - lookDamp * pitchSpin) * dt; pitchView += pitchSpin * dt;
+        transform.rotation = Quaternion.Euler(0, yaw, 0);
         // Handheld camcorder: a slow drifting wobble and tilt all the time, plus a step rhythm while walking.
         walk = Mathf.Lerp(walk, move.magnitude, Mathf.Min(1, Time.deltaTime * 5));
         bob += move.magnitude * Time.deltaTime * 9;
         float t = Time.time, amp = sway * (1 + walk * 1.5f);
         float Drift(float a, float b, float c) => Mathf.Sin(t * a) * 0.5f + Mathf.Sin(t * b + 1.7f) * 0.3f + Mathf.Sin(t * c + 4.1f) * 0.2f;
-        cam.localEulerAngles = new Vector3(pitch + Drift(0.29f, 0.71f, 1.53f) * 0.35f * amp, Drift(0.37f, 0.83f, 1.9f) * 0.45f * amp,
-                                           Drift(0.23f, 0.61f, 1.31f) * 0.7f * amp + Mathf.Sin(bob * 0.5f) * 0.6f * walk * sway);
+        cam.localEulerAngles = new Vector3(pitchView + Drift(0.29f, 0.71f, 1.53f) * 0.35f * amp, Drift(0.37f, 0.83f, 1.9f) * 0.45f * amp,
+                                           Drift(0.23f, 0.61f, 1.31f) * 0.7f * amp + Mathf.Sin(bob * 0.5f) * 0.6f * walk * sway - Mathf.Clamp(yawSpin * 0.015f, -3.5f, 3.5f)); // leans into fast turns
         cam.localPosition = new Vector3(Mathf.Sin(bob * 0.5f) * 0.025f * walk * sway, camY + Mathf.Sin(bob) * 0.03f * walk * sway, 0);
         cc.SimpleMove(transform.TransformDirection(new Vector3(move.x, 0, move.y)) * speed); // SimpleMove adds gravity
     }
