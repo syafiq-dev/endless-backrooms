@@ -14,13 +14,16 @@ public class BackroomsGame : MonoBehaviour
     public float fogDensity = 0.035f;
     [Range(1, 5)] public int look = 2; // shader preset ShaderV1..V5 (Resources/Presets); each run picks one at random, L or the LOOK button cycles
     public static int Look { get; private set; } = 2; // read by VhsCamera
-    public static float LookChangedAt = -10;
+    public static string PopupText; public static float PopupAt = -10; // VhsCamera shows PopupText mid-screen for a moment
+    public static bool CanSearch, HasKey; // key-item prompt and KEY marker, drawn by VhsCamera
+    public static void Popup(string text) { PopupText = text; PopupAt = Time.time; }
     public bool debugMode = false; // shows (DEBUG MODE) on the VHS stamp and each room's variant number on its floor
 
     Material mat;
     GameObject level, player;
     Mesh mesh;
-    Vector3 exitPos;
+    Vector3 exitPos, keySpot;
+    bool locked, atDoor;
     int run;
 
     void Start()
@@ -44,11 +47,18 @@ public class BackroomsGame : MonoBehaviour
         if (Keyboard.current != null && Keyboard.current.lKey.wasPressedThisFrame) NextLook();
         if (look != Look)
         {
-            Look = look; LookChangedAt = Time.time; // VhsCamera swaps its shader and pops up the name
+            Look = look; Popup("SHADERV" + look); // VhsCamera swaps its shader
             mat.shader = Shader.Find("Backrooms/Surface V" + look);
         }
-        var d = player.transform.position - exitPos;
-        if (new Vector2(d.x, d.z).sqrMagnitude < 1.2f * 1.2f) NewRun();
+        var p = player.transform.position;
+        var d = p - exitPos;
+        bool near = new Vector2(d.x, d.z).sqrMagnitude < 1.2f * 1.2f;
+        if (near && locked && !HasKey) { if (!atDoor) Popup("LOCKED"); } // locked runs: find the key item first
+        else if (near) NewRun();
+        atDoor = near;
+        var kd = p - keySpot;
+        CanSearch = locked && !HasKey && new Vector2(kd.x, kd.z).sqrMagnitude < 1.7f * 1.7f;
+        if (CanSearch && Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame) Search();
     }
 
     void NewRun()
@@ -59,8 +69,23 @@ public class BackroomsGame : MonoBehaviour
         int grow = growPerRun * run++;
         var m = Maze.Generate(Mathf.Min(width + grow, maxSize), Mathf.Min(depth + grow, maxSize), Random.Range(int.MinValue, int.MaxValue), loopChance, out var start, out var exit);
 
+        // Half the runs the exit is locked: the key is in a key item in the room farthest from both the start and the exit.
+        (int x, int z)? key = null;
+        locked = Random.value < Props.KeyChance; HasKey = false; atDoor = false;
+        if (locked)
+        {
+            var ds = Maze.Distances(m, start); var de = Maze.Distances(m, exit);
+            int best = -1;
+            for (int x = 0; x < m.GetLength(0); x++)
+                for (int z = 0; z < m.GetLength(1); z++)
+                {
+                    int v = Mathf.Min(ds[x, z], de[x, z]);
+                    if (m[x, z] != 15 && v > best && (x, z) != start) { best = v; key = (x, z); } // needs a wall to stand against
+                }
+        }
+
         level = new GameObject("Level");
-        mesh = BuildMesh(m, exit);
+        mesh = BuildMesh(m, exit, key);
         level.AddComponent<MeshFilter>().sharedMesh = mesh;
         level.AddComponent<MeshRenderer>().sharedMaterial = mat;
         level.AddComponent<MeshCollider>().sharedMesh = mesh;
@@ -72,6 +97,7 @@ public class BackroomsGame : MonoBehaviour
     }
 
     public void NextLook() => look = look % 5 + 1;
+    public void Search() { if (!CanSearch) return; HasKey = true; CanSearch = false; Popup("GOT KEY"); }
 
     Vector3 CellCenter((int x, int z) c) => new Vector3((c.x + 0.5f) * cellSize, 0, (c.z + 0.5f) * cellSize);
 
@@ -88,6 +114,7 @@ public class BackroomsGame : MonoBehaviour
         cam.clearFlags = CameraClearFlags.SolidColor;
         cam.backgroundColor = fogColor;
         cam.nearClipPlane = 0.05f;
+        cam.fieldOfView = 78f; // a bit wider than default, so rooms read bigger
         cam.farClipPlane = 100f; // fog hides everything past ~90m anyway
         camGo.AddComponent<AudioListener>();
         camGo.AddComponent<AmbientHum>();
@@ -97,7 +124,7 @@ public class BackroomsGame : MonoBehaviour
         return p;
     }
 
-    Mesh BuildMesh(int[,] m, (int x, int z) exit) // also sets exitPos
+    Mesh BuildMesh(int[,] m, (int x, int z) exit, (int x, int z)? key) // also sets exitPos and keySpot
     {
         var verts = new List<Vector3>();
         var norms = new List<Vector3>();
@@ -153,7 +180,7 @@ public class BackroomsGame : MonoBehaviour
                 // Straight runs often become narrow corridors (lined up, so the lights run in one file).
                 // Otherwise mostly empty rooms; open crossings (halls) always stay empty so they read as big spaces.
                 int open = m[x, z], variant, turn;
-                bool isExit = (x, z) == exit;
+                bool isExit = (x, z) == exit || (x, z) == key; // exit and key rooms stay empty
                 bool prop = !isExit && Random.value < propChance; // prop and exit rooms are left empty so nothing blocks them
                 if (prop || isExit) { variant = 0; turn = 0; }
                 else if ((open == (Maze.N | Maze.S) || open == (Maze.E | Maze.W)) && Random.value < 0.6f)
@@ -201,12 +228,26 @@ public class BackroomsGame : MonoBehaviour
         var doorT = Matrix4x4.TRS(exitPos, Quaternion.LookRotation(en), Vector3.one);
         foreach (var part in Props.ExitDoor) PropPart(doorT, part);
 
+        // Key item in the middle of one of the key room's walls.
+        if (key is (int kx, int kz))
+        {
+            var kWalls = ClosedSides(m[kx, kz]);
+            var kn = kWalls[Random.Range(0, kWalls.Count)];
+            var keyItem = Props.KeyItems[Random.Range(0, Props.KeyItems.Length)];
+            var at = CellCenter((kx, kz)) - kn * (s / 2 - WallHalf);
+            var kt = Matrix4x4.TRS(at, Quaternion.LookRotation(kn), Vector3.one);
+            foreach (var part in keyItem.parts) PropPart(kt, part);
+            keySpot = at + kn * keyItem.depth;
+        }
+
         // Rare furniture. About half stand normally on the floor; the rest are wrong: tilted and sunk
         // into the carpet, hanging upside down from the ceiling, or half inside a wall.
         void AddProp(Vector3 centre, int open, float k)
         {
-            var item = Props.Items[Random.Range(0, Props.Items.Length)];
-            float a = Random.value * Mathf.PI * 2, r = Random.Range(1f, 1.8f) * k; // off-centre, the spawn/exit spot stays clear
+            int pick = Random.Range(0, Props.Items.Length);
+            var item = Props.Items[pick];
+            float sc = Random.value < Props.BigChance ? Random.Range(1.15f, 1.4f) : 1; // now and then slightly too big
+            float a = Random.value * Mathf.PI * 2, r = Mathf.Max(Random.Range(1f, 1.8f) * k, Props.Footprint[pick] * sc + 0.8f); // off-centre, the spawn/exit spot stays clear
             var pos = centre + new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)) * r;
             var rot = Quaternion.Euler(0, Random.value * 360, 0);
             float mode = Random.value;
@@ -226,7 +267,7 @@ public class BackroomsGame : MonoBehaviour
                 pos = centre - n * (s / 2 - WallHalf) + along * Random.Range(-1.5f, 1.5f);
                 pos.y = Random.value < 0.6f ? 0 : Random.Range(0.3f, 1.2f); // sometimes stuck partway up
             }
-            var t = Matrix4x4.TRS(pos, rot, Vector3.one);
+            var t = Matrix4x4.TRS(pos, rot, Vector3.one * sc);
             foreach (var part in item) PropPart(t, part);
         }
 

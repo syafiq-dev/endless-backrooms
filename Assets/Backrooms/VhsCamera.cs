@@ -68,10 +68,14 @@ public class VhsCamera : MonoBehaviour
         float bw = Screen.height * 0.22f, bh = Screen.height * 0.08f;
         if (GUI.Button(new Rect(Screen.width - bw - Screen.height * 0.04f, Screen.height - bh - Screen.height * 0.04f, bw, bh), "LOOK"))
             FindAnyObjectByType<BackroomsGame>()?.NextLook();
-        if (Time.time - BackroomsGame.LookChangedAt < 1.5f)
+        // Key item prompt (also E on a keyboard) and the KEY marker once you have it.
+        float sw = Screen.height * 0.32f, sh = Screen.height * 0.1f;
+        if (BackroomsGame.CanSearch && GUI.Button(new Rect((Screen.width - sw) / 2, Screen.height * 0.7f, sw, sh), "SEARCH"))
+            FindAnyObjectByType<BackroomsGame>()?.Search();
+        if (Time.time - BackroomsGame.PopupAt < 1.5f) // look names, LOCKED, GOT KEY
         {
             lookStyle ??= new GUIStyle(GUI.skin.label) { fontSize = Screen.height / 10, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, normal = { textColor = new Color(1f, 1f, 0.92f, 0.95f) } };
-            GUI.Label(new Rect(0, 0, Screen.width, Screen.height), "SHADERV" + look, lookStyle);
+            GUI.Label(new Rect(0, 0, Screen.width, Screen.height), BackroomsGame.PopupText, lookStyle);
         }
         if (!dateStamp) return;
         if (style == null)
@@ -81,6 +85,7 @@ public class VhsCamera : MonoBehaviour
         }
         float m = Screen.height * 0.05f;
         GUI.Label(new Rect(m, m, Screen.width, style.fontSize * 1.5f), "PLAY", style);
+        if (BackroomsGame.HasKey) GUI.Label(new Rect(Screen.width - m - style.fontSize * 3, m, style.fontSize * 3, style.fontSize * 1.5f), "KEY", style);
         var now = System.DateTime.Now;
         string stamp = now.ToString("tt h:mm:ss") + "\n" + now.ToString("MMM. dd").ToUpper() + " 1996";
         GUI.Label(new Rect(m, Screen.height - m - style.fontSize * 2.6f, Screen.width, style.fontSize * 3), stamp, style);

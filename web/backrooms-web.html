@@ -40,6 +40,7 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 #start button { font: inherit; font-size: 28px; color: var(--shade); background: var(--paper); border: 0; padding: 10px 22px; justify-self: center; cursor: pointer; letter-spacing: .08em; }
 #start button:focus-visible, #mute:focus-visible, #look:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 #look { margin-right: 8px; }
+#act { position: fixed; left: 50%; bottom: 22%; transform: translateX(-50%); z-index: 5; font: inherit; font-size: clamp(20px, 4vw, 30px); color: var(--ink); background: color-mix(in srgb, var(--shade) 45%, transparent); border: 1px solid var(--ink); padding: 6px 18px; cursor: pointer; letter-spacing: .08em; }
 #lookname { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; font-size: clamp(32px, 9vw, 72px); color: var(--ink); letter-spacing: .08em; text-shadow: 3px 0 rgba(255, 40, 40, .55), -3px 0 rgba(40, 200, 255, .5); z-index: 5; }
 #mute, #look { pointer-events: auto; font: inherit; font-size: .8em; color: var(--ink); background: none; border: 1px solid color-mix(in srgb, var(--ink) 50%, transparent); padding: 2px 10px; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { #fade { transition: none; } }
@@ -47,7 +48,7 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 
 <canvas id="c"></canvas>
 <div class="hud">
-  <div class="row"><span class="play">PLAY <b></b></span><span id="run">RUN 1</span></div>
+  <div class="row"><span class="play">PLAY <b></b></span><span><span id="keyhud" hidden>KEY &nbsp;</span><span id="run">RUN 1</span></span></div>
   <div></div>
   <div class="row">
     <span class="stamp"><span class="debug" id="debug">(DEBUG MODE)</span><br id="debugbr"><span id="clock">PM 5:00:00</span><br><span id="date">OCT. 28 1996</span></span>
@@ -56,6 +57,7 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 </div>
 <div id="fade"></div>
 <div id="lookname" hidden></div>
+<button id="act" type="button" hidden>SEARCH</button>
 <div id="start">
   <div class="card">
     <h1>ENDLESS BACKROOMS</h1>
@@ -1459,6 +1461,19 @@ const PROPS = [
 // Props.ExitDoor: single steel door with a lit EXIT sign, origin at the wall face, +z into the room. Colour 256 = sign plate.
 const EXIT_DOOR = [[-0.52, 1.1, 0.03, 0.05, 1.1, 0.05, 4], [0.52, 1.1, 0.03, 0.05, 1.1, 0.05, 4], [0, 2.15, 0.03, 0.57, 0.05, 0.05, 4],
   [0, 1.05, 0.015, 0.47, 1.05, 0.015, 1], [0, 1.0, 0.06, 0.38, 0.035, 0.03, 4], [0, 2.45, 0.08, 0.32, 0.13, 0.08, 4], [0, 2.45, 0.165, 0.29, 0.1, 0.005, 256]];
+// Key items (Props.KeyItems): what the key is hidden in on locked runs. Separate from the random furniture.
+// Against a wall like the exit door: origin at the wall face, +z into the room.
+const KEY_CHANCE = 0.5;
+const KEY_DESK = [[0, 0.75, 0.42, 0.7, 0.025, 0.38, 0], [-0.48, 0.37, 0.42, 0.22, 0.37, 0.36, 0],
+  [-0.48, 0.25, 0.785, 0.2, 0.006, 0.004, 4], [-0.48, 0.5, 0.785, 0.2, 0.006, 0.004, 4],
+  [-0.48, 0.14, 0.8, 0.06, 0.012, 0.015, 1], [-0.48, 0.38, 0.8, 0.06, 0.012, 0.015, 1], [-0.48, 0.62, 0.8, 0.06, 0.012, 0.015, 1],
+  [0.65, 0.36, 0.1, 0.03, 0.36, 0.03, 0], [0.65, 0.36, 0.74, 0.03, 0.36, 0.03, 0], [0.1, 0.45, 0.07, 0.55, 0.28, 0.01, 0]];
+const KEY_BOX = [[0, 0.25, 0.35, 0.3, 0.25, 0.28, 0], [0, 0.502, 0.35, 0.3, 0.003, 0.04, 3]];
+const KEY_DRAWER = [[0, 0.45, 0.25, 0.3, 0.45, 0.23, 0], [0, 0.3, 0.485, 0.28, 0.006, 0.004, 4], [0, 0.6, 0.485, 0.28, 0.006, 0.004, 4],
+  [0, 0.15, 0.5, 0.07, 0.012, 0.015, 1], [0, 0.45, 0.5, 0.07, 0.012, 0.015, 1], [0, 0.75, 0.5, 0.07, 0.012, 0.015, 1]];
+// parts, distance of the centre from the wall, half width, half depth
+const KEY_ITEMS = [[KEY_DESK, 0.42, 0.72, 0.38], [KEY_DRAWER, 0.25, 0.3, 0.23], [KEY_BOX, 0.35, 0.3, 0.28]]; // office desk, drawer unit, cardboard box
+const PROP_BIG = 0.25; // share of random furniture that comes out slightly too big
 const PROP_FOOT = [0.25, 0.2, 0.65, 0.35, 0.1]; // reach from the item's centre, for collisions
 // 3x3 rotations (row-major) for placing props
 const rx = a => { const c = Math.cos(a), s = Math.sin(a); return [1,0,0, 0,c,-s, 0,s,c]; };
@@ -1501,11 +1516,22 @@ function generate() {
     if (dist[x][z] > dist[exit[0]][exit[1]] && m[x][z] !== 15) exit = [x, z]; // needs a wall for the exit door
     for (let d = 0; d < 4; d++) if (m[x][z] & BIT[d]) { const nx = x + DX[d], nz = z + DZ[d]; if (dist[nx][nz] < 0) { dist[nx][nz] = dist[x][z] + 1; q.push([nx, nz]); } }
   }
-  return { m, start, exit };
+  // Half the runs the exit is locked: the key is in a desk or box in the room farthest from both the start and the exit.
+  let key = null;
+  if (Math.random() < KEY_CHANCE) {
+    const de = m.map(r => r.map(() => -1)), q2 = [exit]; de[exit[0]][exit[1]] = 0;
+    while (q2.length) { const [x, z] = q2.shift(); for (let d = 0; d < 4; d++) if (m[x][z] & BIT[d]) { const nx = x + DX[d], nz = z + DZ[d]; if (de[nx][nz] < 0) { de[nx][nz] = de[x][z] + 1; q2.push([nx, nz]); } } }
+    let best = -1;
+    for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) {
+      const v = Math.min(dist[x][z], de[x][z]);
+      if (m[x][z] !== 15 && v > best && !(x === start[0] && z === start[1])) { best = v; key = [x, z]; } // needs a wall to stand against
+    }
+  }
+  return { m, start, exit, key };
 }
 
 const sub = (a, b) => a.map((x, i) => x - b[i]), cross = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]], dot = (a, b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
-function buildMesh(m, exit) {
+function buildMesh(m, exit, key) {
   const propChance = 1 / (PROP_ODDS[0] + Math.random() * (PROP_ODDS[1] - PROP_ODDS[0])); // new odds every run
   const V = [], I = [], solids = m.map(r => r.map(() => [])); let o = 0;
   const quad = (a, b, c, d, n, v = V, ix = I) => {
@@ -1531,7 +1557,7 @@ function buildMesh(m, exit) {
     const x0 = x*S, x1 = x0+S, z0 = z*S, z1 = z0+S, open = m[x][z];
     // straight runs often become narrow corridors; otherwise mostly empty, and halls always empty
     let variant, turn;
-    const isExit = x === exit[0] && z === exit[1], prop = !isExit && Math.random() < propChance; // prop and exit rooms stay empty so nothing blocks them
+    const isExit = (x === exit[0] && z === exit[1]) || (key && x === key[0] && z === key[1]), prop = !isExit && Math.random() < propChance; // prop, exit and key rooms stay empty so nothing blocks them
     if (prop || isExit) { variant = 0; turn = 0; }
     else if ((open === 5 || open === 10) && Math.random() < 0.6) { variant = CORRIDOR; turn = open === 5 ? 0 : 1; }
     else { variant = open === 15 || Math.random() < 0.5 ? 0 : 1 + rnd(CORRIDOR - 1); turn = rnd(4); }
@@ -1550,7 +1576,8 @@ function buildMesh(m, exit) {
   // About half the props stand normally; the rest are wrong: tilted and sunk into the carpet,
   // hanging upside down from the ceiling, or half inside a wall (BackroomsGame.AddProp does the same).
   function addProp(x, z, cx, cz, open) {
-    const item = rnd(PROPS.length), a = Math.random() * Math.PI * 2, r = (1 + Math.random() * 0.8) * S / 4;
+    const item = rnd(PROPS.length), a = Math.random() * Math.PI * 2, sc = Math.random() < PROP_BIG ? 1.15 + Math.random() * 0.25 : 1; // now and then slightly too big
+    const r = Math.max((1 + Math.random() * 0.8) * S / 4, PROP_FOOT[item] * sc + 0.8); // keep the middle of the room walkable
     let pos = [cx + Math.cos(a) * r, 0, cz + Math.sin(a) * r], rot = ry(Math.random() * Math.PI * 2), mode = Math.random();
     const walls = closedSides(open);
     if (mode >= 0.85 && !walls.length) mode = 0;
@@ -1561,11 +1588,12 @@ function buildMesh(m, exit) {
       const n = walls[rnd(walls.length)], along = Math.random() * 3 - 1.5, d = S/2 - WALL_HALF;
       pos = [cx - n[0]*d + n[2]*along, Math.random() < 0.6 ? 0 : 0.3 + Math.random() * 0.9, cz - n[2]*d - n[0]*along];
     }
-    for (const pt of PROPS[item]) part(pos, rot, pt);
-    if (pos[1] < H - 1) { const f = PROP_FOOT[item]; solids[x][z].push([pos[0], pos[2], f, f]); } // ceiling ones hang above your head
+    for (const pt of PROPS[item]) part(pos, rot, pt, sc);
+    if (pos[1] < H - 1) { const f = PROP_FOOT[item] * sc; solids[x][z].push([pos[0], pos[2], f, f]); } // ceiling ones hang above your head
   }
   function closedSides(open) { return [[1, [0,0,-1]], [4, [0,0,1]], [2, [-1,0,0]], [8, [1,0,0]]].filter(([b]) => !(open & b)).map(([, n]) => n); } // inward normals
-  function part(pos, rot, [px, py, pz, hx, hy, hz, mat, spin = 0]) {
+  function part(pos, rot, [px, py, pz, hx, hy, hz, mat, spin = 0], sc = 1) {
+    [px, py, pz, hx, hy, hz] = [px, py, pz, hx, hy, hz].map(v => v * sc);
     const R3 = mm(rot, rz(rad(spin))), c = add(pos, mv(rot, [px, py, pz]), 1);
     const P = i => add(c, mv(R3, [i & 1 ? hx : -hx, i & 2 ? hy : -hy, i & 4 ? hz : -hz]), 1), N = v => mv(R3, v), k = [0,1,2,3,4,5,6,7].map(P);
     o = 256 + mat; // flat prop colour in the shader
@@ -1577,6 +1605,15 @@ function buildMesh(m, exit) {
   const ew = closedSides(m[exit[0]][exit[1]]), [nx, , nz] = ew[rnd(ew.length)], dd = S/2 - WALL_HALF;
   const door = [(exit[0]+.5)*S - nx*dd, 0, (exit[1]+.5)*S - nz*dd];
   for (const pt of EXIT_DOOR) part(door, [nz,0,nx, 0,1,0, -nx,0,nz], pt); // local +z faces into the room
+  // key item (desk, drawer unit or box), against the middle of one of the key room's walls
+  let keySpot = null;
+  if (key) {
+    const kw = closedSides(m[key[0]][key[1]]), [kx, , kz] = kw[rnd(kw.length)], [parts, depth, w, d2] = KEY_ITEMS[rnd(KEY_ITEMS.length)];
+    const at = [(key[0]+.5)*S - kx*dd, 0, (key[1]+.5)*S - kz*dd];
+    for (const pt of parts) part(at, [kz,0,kx, 0,1,0, -kx,0,kz], pt);
+    keySpot = [at[0] + kx*depth, at[2] + kz*depth];
+    solids[key[0]][key[1]].push([keySpot[0], keySpot[1], kx ? d2 : w, kx ? w : d2]);
+  }
   o = 15;
   // grid corners: a wall-thick cap wherever a wall touches, otherwise now and then a freestanding column
   const closed = (cx, cz, side) => cx >= 0 && cz >= 0 && cx < W && cz < D && !(m[cx][cz] & side);
@@ -1587,13 +1624,14 @@ function buildMesh(m, exit) {
     corners[x][z] = half;
     if (half) { box(x*S, z*S, half, half, H, V, I); box(x*S, z*S, half + TRIM, half + TRIM, TRIM_H, V, I); }
   }
-  return { V, I, solids, corners, door };
+  return { V, I, solids, corners, door, keySpot };
 }
 
 const canvas = document.getElementById('c'), g = canvas.getContext('webgl2', { antialias: true });
 const how = document.getElementById('how'), hint = document.getElementById('hint');
 const touch = matchMedia('(pointer: coarse)').matches;
 how.textContent = touch ? 'Drag left side to walk. Drag right side to look.' : 'WASD to walk, Shift to run, mouse to look. Esc frees the mouse.';
+document.getElementById('act').textContent = touch ? 'SEARCH' : 'E: SEARCH';
 hint.textContent = touch ? 'LEFT: WALK  RIGHT: LOOK' : 'WASD + MOUSE / L: LOOK';
 if (!g) { how.textContent = 'This browser has no WebGL 2, so the game cannot run here. Try Chrome, Safari 15+ or Firefox.'; document.getElementById('go').hidden = true; }
 
@@ -1608,9 +1646,9 @@ const forLooks = f => { for (const l of LOOKS) { prog = l.prog; g.useProgram(pro
 function setLook(i) { lookIdx = i; prog = LOOKS[i].prog; vhsProg = LOOKS[i].vhs; }
 let lookTimer;
 function nextLook() { showLook((lookIdx + 1) % LOOKS.length); }
-function showLook(i) {
-  setLook(i);
-  const el = document.getElementById('lookname'); el.textContent = 'SHADERV' + (lookIdx + 1); el.hidden = false;
+function showLook(i) { setLook(i); popup('SHADERV' + (lookIdx + 1)); }
+function popup(text) { // VHS-style text mid-screen for a moment
+  const el = document.getElementById('lookname'); el.textContent = text; el.hidden = false;
   clearTimeout(lookTimer); lookTimer = setTimeout(() => el.hidden = true, 1500);
 }
 forLooks(() => { g.uniform1f(U('_Debug'), DEBUG ? 1 : 0); g.uniform1f(U('_CellSize'), S); g.uniform1f(U('_WallHeight'), H); g.uniform1f(U('_FogDensity'), 0.035); g.uniform4f(U('_FogColor'), ...FOG, 1); });
@@ -1630,7 +1668,7 @@ function makeVao(v, i) {
   const img = new Image(); img.onload = () => { g.activeTexture(g.TEXTURE0 + k); g.bindTexture(g.TEXTURE_2D, tex); g.texImage2D(g.TEXTURE_2D, 0, g.RGB, g.RGB, g.UNSIGNED_BYTE, img); g.generateMipmap(g.TEXTURE_2D); g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR_MIPMAP_LINEAR); g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.REPEAT); }; img.src = src;
 });
 
-let maze, level, door, solids, corners, run = 0;
+let maze, level, door, keySpot, hasKey, atDoor, solids, corners, run = 0;
 const me = { x: 0, z: 0, yaw: 0, pitch: 0, bob: 0, walk: 0, vy: 0, vp: 0, sy: 0, sp: 0 }; // yaw/pitch = where you aim; vy/vp = where the camera points, sy/sp = its spin
 const LOOK_SPRING = 90, LOOK_DAMP = 15; // camera follows your aim on a spring, slightly under-damped so it settles with a soft overshoot (PlayerController.cs)
 const SWAY = 1; // handheld camcorder wobble (PlayerController.sway); 0 = tripod-steady
@@ -1638,8 +1676,10 @@ function newRun() {
   run++; W = D = Math.min(SIZE + GROW * (run - 1), MAX_SIZE);
   maze = generate();
   const seed = Math.random() * 100; forLooks(() => g.uniform1f(U('_Seed'), seed)); // moves the low-power zones each run
-  const mesh = buildMesh(maze.m, maze.exit);
-  level = makeVao(mesh.V, mesh.I); door = mesh.door; solids = mesh.solids; corners = mesh.corners;
+  const mesh = buildMesh(maze.m, maze.exit, maze.key);
+  level = makeVao(mesh.V, mesh.I); door = mesh.door; keySpot = mesh.keySpot; hasKey = false; atDoor = false;
+  document.getElementById('keyhud').hidden = true; document.getElementById('act').hidden = true;
+  solids = mesh.solids; corners = mesh.corners;
   me.x = (maze.start[0] + .5) * S; me.z = (maze.start[1] + .5) * S; me.pitch = 0;
   // face an open side so you don't spawn staring at a wall
   const o = maze.m[maze.start[0]][maze.start[1]]; const d = [0, 1, 2, 3].find(d => o & BIT[d]); me.yaw = [0, 90, 180, 270][d] * Math.PI / 180;
@@ -1665,7 +1705,12 @@ function blocked(x, z) {
 
 // Input
 const keys = new Set(); let look = [0, 0]; const touches = new Map();
-addEventListener('keydown', e => { keys.add(e.code); if (e.code === 'KeyL') nextLook(); }); addEventListener('keyup', e => keys.delete(e.code));
+function search() {
+  if (document.getElementById('act').hidden || hasKey) return;
+  hasKey = true; document.getElementById('act').hidden = true; document.getElementById('keyhud').hidden = false; popup('GOT KEY');
+}
+document.getElementById('act').addEventListener('click', search);
+addEventListener('keydown', e => { keys.add(e.code); if (e.code === 'KeyL') nextLook(); if (e.code === 'KeyE') search(); }); addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 let dragging = false;
 canvas.addEventListener('mousedown', () => { if (playing && !touch) { canvas.requestPointerLock?.()?.catch?.(() => {}); dragging = true; } });
@@ -1712,7 +1757,7 @@ document.getElementById('go').addEventListener('click', () => {
 });
 
 // Matrices
-const fovY = 70 * Math.PI / 180, near = 0.05, far = 100;
+const fovY = 78 * Math.PI / 180, near = 0.05, far = 100;
 // Unity's world is left-handed (facing +z, +x is on your right); proj[0] is negated to match, so text and layouts read the same in both.
 function viewProj(cam, yaw, pitch, aspect, roll = 0) {
   const f = [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)];
@@ -1773,7 +1818,13 @@ function frame(now) {
     if (!blocked(me.x, me.z + dz)) me.z += dz;
     me.bob += Math.hypot(mx, mz) * dt * 9; me.walk += (Math.hypot(mx, mz) - me.walk) * Math.min(1, dt * 5);
     const ex = door[0] - me.x, ez = door[2] - me.z;
-    if (!fading && ex * ex + ez * ez < 1.2 * 1.2) { fading = true; fade.classList.add('on'); setTimeout(() => { newRun(); fade.classList.remove('on'); fading = false; }, 550); }
+    const near = ex * ex + ez * ez < 1.2 * 1.2;
+    if (near && keySpot && !hasKey) { if (!atDoor) popup('LOCKED'); } // locked runs: find the key first
+    else if (!fading && near) { fading = true; fade.classList.add('on'); setTimeout(() => { newRun(); fade.classList.remove('on'); fading = false; }, 550); }
+    atDoor = near;
+    // key container: walk up to it and search it (E, or tap the button)
+    const kd = keySpot && !hasKey ? Math.hypot(keySpot[0] - me.x, keySpot[1] - me.z) : 1e9;
+    document.getElementById('act').hidden = !(kd < 1.7);
     stamp();
   } else me.yaw += dt * 0.08; // slow pan behind the start screen
   // Handheld camcorder (same as PlayerController.cs): a slow drifting wobble and tilt all the time, plus a step rhythm while walking.

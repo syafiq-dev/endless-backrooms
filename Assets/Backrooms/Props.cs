@@ -4,7 +4,8 @@ using UnityEngine;
 // Prop space: origin on the floor at the item's centre, y up, front is +z. Metres.
 public static class Props
 {
-    public const float MinOdds = 200, MaxOdds = 300; // each run rolls a chance between 1 in 200 and 1 in 300 rooms
+    public const float MinOdds = 200, MaxOdds = 300;
+    public const float BigChance = 0.25f; // share of random furniture that comes out slightly too big (x1.15-1.4) // each run rolls a chance between 1 in 200 and 1 in 300 rooms
     public const int Wood = 0, Metal = 1, Red = 2, White = 3, Dark = 4; // colours, see the BackroomsSurface shaders in Resources/Presets
     public const int Sign = 256; // the shader writes a glowing red EXIT on this face
 
@@ -62,6 +63,25 @@ public static class Props
         new Part(0, 1.0f, 0.06f, 0.38f, 0.035f, 0.03f, Dark),    // push bar
         new Part(0, 2.45f, 0.08f, 0.32f, 0.13f, 0.08f, Dark),    // sign box
         new Part(0, 2.45f, 0.165f, 0.29f, 0.1f, 0.005f, Sign),
+    };
+
+    // Key items: on locked runs the key is hidden in one of these. Separate from the random furniture above.
+    // Against a wall like the exit door: origin on the floor at the wall face, +z out into the room.
+    public const float KeyChance = 0.5f; // share of runs where the exit is locked
+    public struct KeyItem { public string name; public Part[] parts; public float depth, halfWidth, halfDepth; } // depth = centre's distance from the wall
+    public static readonly KeyItem[] KeyItems =
+    {
+        new KeyItem { name = "Office Desk", depth = 0.42f, halfWidth = 0.72f, halfDepth = 0.38f, parts = new[] {
+            new Part(0, 0.75f, 0.42f, 0.7f, 0.025f, 0.38f, Wood), new Part(-0.48f, 0.37f, 0.42f, 0.22f, 0.37f, 0.36f, Wood), // top, drawer pedestal
+            new Part(-0.48f, 0.25f, 0.785f, 0.2f, 0.006f, 0.004f, Dark), new Part(-0.48f, 0.5f, 0.785f, 0.2f, 0.006f, 0.004f, Dark),
+            new Part(-0.48f, 0.14f, 0.8f, 0.06f, 0.012f, 0.015f, Metal), new Part(-0.48f, 0.38f, 0.8f, 0.06f, 0.012f, 0.015f, Metal), new Part(-0.48f, 0.62f, 0.8f, 0.06f, 0.012f, 0.015f, Metal),
+            new Part(0.65f, 0.36f, 0.1f, 0.03f, 0.36f, 0.03f, Wood), new Part(0.65f, 0.36f, 0.74f, 0.03f, 0.36f, 0.03f, Wood), new Part(0.1f, 0.45f, 0.07f, 0.55f, 0.28f, 0.01f, Wood) } },
+        new KeyItem { name = "Drawer Unit", depth = 0.25f, halfWidth = 0.3f, halfDepth = 0.23f, parts = new[] {
+            new Part(0, 0.45f, 0.25f, 0.3f, 0.45f, 0.23f, Wood),
+            new Part(0, 0.3f, 0.485f, 0.28f, 0.006f, 0.004f, Dark), new Part(0, 0.6f, 0.485f, 0.28f, 0.006f, 0.004f, Dark),
+            new Part(0, 0.15f, 0.5f, 0.07f, 0.012f, 0.015f, Metal), new Part(0, 0.45f, 0.5f, 0.07f, 0.012f, 0.015f, Metal), new Part(0, 0.75f, 0.5f, 0.07f, 0.012f, 0.015f, Metal) } },
+        new KeyItem { name = "Cardboard Box", depth = 0.35f, halfWidth = 0.3f, halfDepth = 0.28f, parts = new[] {
+            new Part(0, 0.25f, 0.35f, 0.3f, 0.25f, 0.28f, Wood), new Part(0, 0.502f, 0.35f, 0.3f, 0.003f, 0.04f, White) } },
     };
 
     // How far each item reaches from its centre on the floor, for spacing (browser version uses it for collisions).
