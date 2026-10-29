@@ -1,0 +1,37 @@
+# Endless Backrooms (Unity 6, URP, Android)
+
+A procedural backrooms maze you can walk around on your phone. Every run picks a new maze and a random start. The exit is a single steel door with a lit EXIT sign, set into a wall of the room farthest from you. Walk up to it and a new maze is generated.
+
+## What's in `Assets/Backrooms`
+
+| File | What it does |
+|---|---|
+| `Maze.cs` | Generates the grid (24×24 rooms of 6 m, about a 20 minute walk to the exit; `growPerRun` can make each run bigger), with open halls knocked through for room-size variety. Each cell is a "pipe fitting": a 4-bit mask of open sides (dead end, straight, corner, T, cross). Recursive backtracker so everything is reachable, plus a few extra openings so it loops. |
+| `BackroomsGame.cs` | Turns the maze into one mesh (floor, ceiling, 40 cm walls on closed sides with caps where they end, the odd freestanding column), spawns the player, handles the exit and new runs. Tweak size, cell size, fog in the Inspector. **Debug Mode** (off by default; tick it to turn on) shows a green (DEBUG MODE) on the VHS stamp and paints each room's variant number on its floor. |
+| `PlayerController.cs` | Phone: drag left half to walk, drag right half to look. Editor: WASD, hold right mouse to look. Handheld camcorder sway (slow wobble and tilt, step rhythm when walking); `sway` 0 turns it off. |
+| `AmbientHum.cs` | Fluorescent hum + room tone, generated in code. Swap for real recordings later. |
+| `Resources/Presets/ShaderV1..V3/` | Three looks, each a BackroomsSurface (the room: wallpaper, carpet, drop ceiling with fake light panels, soft corner shadows, flicker, fog) plus a BackroomsVHS camcorder pass. **V1** greener mono-yellow, **V2** (default) warmer, brighter and hazier like the original footage, **V3** dim, cold and realistic on cleaner tape. Pick one with **Look** on Backrooms Game, or press L / the LOOK button while playing; the name pops up mid-screen. No real lights, so it stays cheap on mobile. |
+| `Resources/backroom_wallpaper.jpg`, `Resources/carpet.jpg` | Wallpaper and carpet textures from your 2022 project (carpet shrunk to 512px for phones). The shader keeps their pattern but uses its own tuned colours. |
+| `VhsCamera.cs` | Camcorder look: renders the game at 360 lines, then runs the current look's VHS shader (colour bleed, tracking wobble, rolling noise band, head-switching noise, bloom) and draws the PLAY/date stamp and LOOK button. Works in plain URP, no renderer-feature setup. Turn `lines` up or down on the camera's VHS Camera component. |
+| `RoomVariants.cs` | 8 room interiors plus a Corridor (8) used on straight runs to make long narrow hallways: from your 2022 prefabs 0 Empty, 1 Multisections (partition stubs), 2 Hallway Left, 3 Hallway Right; plus 4 Pillar Grid, 5 Lone Slab, 6 Doorway, 7 Zig-Zag. (The cross-pillar Segmented room was dropped.) Half the rooms are empty, open halls always are; the rest pick one at random with a random rotation. |
+| `Props.cs` | Rare furniture (1 in 300 rooms): wooden chair, stool, small table, filing cabinet, stop sign, built from boxes. About half stand normally; the rest are tilted and sunk into the floor, hanging upside down from the ceiling, or half inside a wall. Change `Chance` to make them more common. |
+| `Editor/MazeSelfCheck.cs` | Menu **Backrooms > Run Maze Self-Check**: checks 200 mazes are fully connected and tiles line up. |
+
+## Setup (about 5 minutes)
+
+1. In **Unity Hub**, install **Unity 6 LTS** with the **Android Build Support** module (tick OpenJDK and Android SDK & NDK too).
+2. **New project** with the **Universal 3D** template.
+3. Copy the `Backrooms` folder into the new project's `Assets` folder.
+4. **File > New Scene > Empty**. Then **GameObject > Create Empty**, select it, **Add Component > Backrooms Game**. Save the scene.
+5. Press **Play**. WASD to walk, hold right mouse to look.
+6. For the phone: **File > Build Profiles**, pick **Android**, **Switch Platform**, add the open scene. Turn on USB debugging on the phone, plug it in, **Build And Run**.
+
+If you get errors about `UnityEngine.InputSystem`, go to **Edit > Project Settings > Player > Active Input Handling** and set it to **Input System Package (New)** or **Both**.
+
+## Not built yet
+
+Ads, the remove-ads purchase, footsteps, menus, and custom room prefabs per tile type. The tile masks in `Maze.cs` are the hook for swapping in hand-made room models later.
+
+## Browser version
+
+`web/backrooms-web.html` is the same maze, mesh and shaders running in WebGL, for testing without Unity. Debug mode there is the `DEBUG` constant at the top of the script. `web/build.py` regenerates it from the Unity look presets, so edit the `.shader` files and rebuild rather than editing the HTML. The LOOK button (or L) cycles ShaderV1-V3.
