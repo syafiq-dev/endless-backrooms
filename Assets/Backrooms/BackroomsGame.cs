@@ -21,10 +21,12 @@ public class BackroomsGame : MonoBehaviour
     public static float Seed; // this run's _Seed, so Wetness() matches the shaders
     public static void ToggleNightVision() { NightVision = !NightVision; Popup(NightVision ? "NIGHT SHOT" : "NIGHT SHOT OFF"); }
     public static void Popup(string text) { PopupText = text; PopupAt = Time.time; }
+    public bool entityOn = true; // hidden switch for the entity (Entity.cs); off = no entity
     public bool debugMode = false; // shows (DEBUG MODE) on the VHS stamp and each room's variant number on its floor
 
     Material mat;
     GameObject level, player;
+    Entity entity;
     Mesh mesh;
     Vector3 exitPos, keySpot;
     readonly List<Vector3> fakeDoors = new List<Vector3>();
@@ -43,6 +45,7 @@ public class BackroomsGame : MonoBehaviour
         Shader.SetGlobalFloat("_FogDensity", fogDensity);
         Shader.SetGlobalColor("_FogColor", fogColor);
         player = CreatePlayer();
+        if (entityOn) { entity = gameObject.AddComponent<Entity>(); entity.Init(this, player.transform, mat, cellSize); }
         NewRun();
     }
 
@@ -103,11 +106,14 @@ public class BackroomsGame : MonoBehaviour
         level.AddComponent<MeshRenderer>().sharedMaterial = mat;
         level.AddComponent<MeshCollider>().sharedMesh = mesh;
 
+        if (entity) entity.NewRun(m);
         var cc = player.GetComponent<CharacterController>();
         cc.enabled = false; // CharacterController ignores direct position writes while enabled
         player.transform.position = CellCenter(start);
         cc.enabled = true;
     }
+
+    public void Caught() { Popup("TAPE ENDS"); NewRun(); } // the entity got you: the tape cuts and a new one starts
 
     public void NextLook() => look = look % 5 + 1;
     public void Search() { if (!CanSearch) return; HasKey = true; CanSearch = false; Popup("GOT KEY"); }

@@ -6,10 +6,11 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(CharacterController))]
 public class PlayerController : MonoBehaviour
 {
-    public float speed = 3f, mouseLook = 0.15f, touchLook = 0.15f;
+    public float speed = 3f, runSpeed = 5f, mouseLook = 0.15f, touchLook = 0.15f;
     public float lookSpring = 90f, lookDamp = 15f; // camera chases your aim on a spring (slight overshoot) instead of snapping, like a handheld camcorder
     [Range(0, 2)] public float sway = 1f; // handheld camcorder wobble; 0 = tripod-steady
 
+    public static bool RunHeld; // RUN button toggle (VhsCamera)
     CharacterController cc;
     Transform cam;
     AudioSource steps;
@@ -51,6 +52,7 @@ public class PlayerController : MonoBehaviour
     void Update()
     {
         Vector2 move = Vector2.zero, look = Vector2.zero;
+        bool running = RunHeld || Keyboard.current != null && Keyboard.current.leftShiftKey.isPressed; // RUN button (VhsCamera) or Shift
 
         var kb = Keyboard.current;
         if (kb != null)
@@ -96,6 +98,6 @@ public class PlayerController : MonoBehaviour
         cam.localEulerAngles = new Vector3(pitchView + Drift(0.29f, 0.71f, 1.53f) * 0.35f * amp, Drift(0.37f, 0.83f, 1.9f) * 0.45f * amp,
                                            Drift(0.23f, 0.61f, 1.31f) * 0.7f * amp + Mathf.Sin(bob * 0.5f) * 0.6f * walk * sway - Mathf.Clamp(yawSpin * 0.015f, -3.5f, 3.5f)); // leans into fast turns
         cam.localPosition = new Vector3(Mathf.Sin(bob * 0.5f) * 0.025f * walk * sway, camY + Mathf.Sin(bob) * 0.03f * walk * sway, 0);
-        cc.SimpleMove(transform.TransformDirection(new Vector3(move.x, 0, move.y)) * speed); // SimpleMove adds gravity
+        cc.SimpleMove(transform.TransformDirection(new Vector3(move.x, 0, move.y)) * (running ? runSpeed : speed)); // SimpleMove adds gravity
     }
 }

@@ -47,6 +47,10 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 /* NIGHT: a big square button mid-right, easy to hit with the right thumb */
 #nv { position: fixed; z-index: 5; right: max(16px, env(safe-area-inset-right, 0px)); top: 50%; transform: translateY(-50%); width: clamp(64px, 13vmin, 110px); aspect-ratio: 1; padding: 0; font-size: clamp(16px, 3vmin, 24px); background: color-mix(in srgb, var(--shade) 35%, transparent); }
 #nv.on { color: var(--shade); background: var(--ink); }
+/* RUN (phones): tap to toggle running; bigger than NIGHT, bottom-right above the LOOK/SOUND row */
+#runb { position: fixed; z-index: 5; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 64px); width: clamp(84px, 19vmin, 150px); aspect-ratio: 1; padding: 0;
+  font: inherit; font-size: clamp(18px, 3.6vmin, 30px); color: var(--ink); background: color-mix(in srgb, var(--shade) 35%, transparent); border: 1px solid color-mix(in srgb, var(--ink) 50%, transparent); cursor: pointer; touch-action: none; }
+#runb.on { color: var(--shade); background: var(--ink); }
 @media (prefers-reduced-motion: reduce) { #fade { transition: none; } }
 </style>
 
@@ -61,6 +65,7 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 </div>
 <div id="fade"></div>
 <button id="nv" type="button" aria-pressed="false" hidden>NIGHT</button>
+<button id="runb" type="button" hidden>RUN</button>
 <div id="lookname" hidden></div>
 <button id="act" type="button" hidden>SEARCH</button>
 <div id="start">
@@ -107,7 +112,8 @@ const SIZE = 24, GROW = 0, MAX_SIZE = 32; // 24x24 rooms (~20 min runs); GROW > 
 let W = SIZE, D = SIZE;
 const S = 6, H = 3.4, LOOP = 0.3, FOG = [0.50, 0.48, 0.20], R = 0.25;
 const WALL_HALF = 0.2, TRIM = 0.02, TRIM_H = 0.1;
-const DEBUG = false; // debug/dev mode: (DEBUG MODE) on the stamp + room variant numbers on the floors
+const DEBUG = false;
+const ENTITY = true; // hidden switch: false = no entity (Entity.cs: BackroomsGame.entityOn) // debug/dev mode: (DEBUG MODE) on the stamp + room variant numbers on the floors
 // Room interiors from RoomVariants.cs: [centre x, centre z, half x, half z] around the cell centre, for 4 m cells.
 const VARIANTS = [
   [],                                                                                 // 0 Empty
@@ -385,7 +391,7 @@ function buildMesh({ m, exit, key, long, arch, funnel }) {
 const canvas = document.getElementById('c'), g = canvas.getContext('webgl2', { antialias: true });
 const how = document.getElementById('how'), hint = document.getElementById('hint');
 const touch = matchMedia('(pointer: coarse)').matches;
-how.textContent = touch ? 'Drag left side to walk. Drag right side to look.' : 'WASD to walk, Shift to run, mouse to look. Esc frees the mouse.';
+how.textContent = touch ? 'Drag left side to walk, tap RUN to run. Drag right side to look.' : 'WASD to walk, Shift to run, mouse to look. Esc frees the mouse.';
 document.getElementById('act').textContent = touch ? 'SEARCH' : 'E: SEARCH';
 hint.textContent = touch ? 'LEFT: WALK  RIGHT: LOOK' : 'WASD + MOUSE / L: LOOK / N: NIGHT';
 if (!g) { how.textContent = 'This browser has no WebGL 2, so the game cannot run here. Try Chrome, Safari 15+ or Firefox.'; document.getElementById('go').hidden = true; }
@@ -434,6 +440,7 @@ function newRun() {
   const mesh = buildMesh(maze);
   const sign = [mesh.door[0] + mesh.doorN[0] * 0.17, 2.45, mesh.door[2] + mesh.doorN[1] * 0.17]; forLooks(() => g.uniform4f(U('_ExitPos'), ...sign, 0)); // its red glow
   level = makeVao(mesh.V, mesh.I); door = mesh.door; fakeDoors = mesh.fakeDoors; keySpot = mesh.keySpot; hasKey = false; atDoor = false;
+  ent.on = false; ent.cool = 0; ent.count = 0; ent.slammed = false; ent.seen = maze.m.map(r => r.map(() => false)); // a new tape, a new count
   document.getElementById('keyhud').hidden = true; document.getElementById('act').hidden = true;
   solids = mesh.solids; corners = mesh.corners;
   me.x = (maze.start[0] + .5) * S; me.z = (maze.start[1] + .5) * S; me.pitch = 0;
@@ -515,7 +522,15 @@ function startAudio() {
 document.getElementById('look').addEventListener('click', nextLook);
 // Night vision (N or the NIGHT button): infrared lamp + green NightShot picture. No battery, it just works.
 function toggleNV() { nv = !nv; const b = document.getElementById('nv'); b.classList.toggle('on', nv); b.setAttribute('aria-pressed', nv); popup(nv ? 'NIGHT SHOT' : 'NIGHT SHOT OFF'); }
-document.getElementById('nv').addEventListener('click', toggleNV);
+// Buttons react on touchstart, not click: a phone sends no click for a second finger while the first is walking.
+const press = (el, down, up) => {
+  el.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); down(); }, { passive: false });
+  if (up) for (const ev of ['touchend', 'touchcancel']) el.addEventListener(ev, e => { e.preventDefault(); up(); }, { passive: false });
+  el.addEventListener('click', () => { down(); up?.(); }); // mouse / keyboard
+};
+press(document.getElementById('nv'), toggleNV);
+let runHeld = false; // RUN toggle (phones)
+press(document.getElementById('runb'), () => { runHeld = !runHeld; document.getElementById('runb').classList.toggle('on', runHeld); }); // tap to toggle running
 // Footsteps: a soft carpet thud per step (heavier when running), and a wet squelch on soaked carpet.
 let stepNoise;
 function footstep(run, wet) {
@@ -537,10 +552,109 @@ document.getElementById('mute').addEventListener('click', e => {
 
 let playing = false;
 document.getElementById('go').addEventListener('click', () => {
-  document.getElementById("start").hidden = true; document.getElementById("nv").hidden = false; playing = true; startAudio(); showLook(lookIdx);
+  document.getElementById("start").hidden = true; document.getElementById("nv").hidden = false; document.getElementById("runb").hidden = !touch; playing = true; startAudio(); showLook(lookIdx);
   if (!touch) canvas.requestPointerLock?.()?.catch?.(() => {});
   setTimeout(() => hint.classList.add('gone'), 6000);
 });
+
+// The entity (Entity.cs does the same). A slam somewhere out of sight once you've explored 30% of the rooms; at 35% it
+// appears a few rooms behind you and follows the maze toward you, lit or dark, a bit faster than walking but slower
+// than running. Get ENT_LOSE rooms ahead and it loses you and fades (and comes back after a while). If it reaches you, the tape ends.
+const ENT_SLAM = 0.30, ENT_WAKE = 0.35, ENT_SPEED = 3.4, ENT_REACH = 0.9, ENT_COOLDOWN = 25, ENT_LOSE = 6;
+// boxes [x, y, z, hx, hy, hz]: tall and thin, long arms, small head; local +z faces you
+const ENT_BODY = [[-0.12, 0.55, 0, 0.06, 0.55, 0.07], [0.12, 0.55, 0, 0.06, 0.55, 0.07], [0, 1.45, 0, 0.2, 0.38, 0.1],
+  [-0.27, 1.25, 0.05, 0.04, 0.55, 0.05], [0.27, 1.25, 0.05, 0.04, 0.55, 0.05], [0, 2.0, 0.02, 0.1, 0.14, 0.11]];
+const ent = { on: false, x: 0, z: 0, yaw: 0, fade: 0, cool: 0, seen: null, count: 0, slammed: false, vao: null, buf: null }; // seen = rooms you've been in
+function cellSteps(fx, fz) { // walking distance in rooms from (fx, fz) to every room
+  const d = maze.m.map(r => r.map(() => -1)), q = [[fx, fz]]; d[fx][fz] = 0;
+  for (let i = 0; i < q.length; i++) { const [x, z] = q[i]; for (let k = 0; k < 4; k++) if (maze.m[x][z] & BIT[k]) { const nx = x + DX[k], nz = z + DZ[k]; if (d[nx][nz] < 0) { d[nx][nz] = d[x][z] + 1; q.push([nx, nz]); } } }
+  return d;
+}
+function entityStep(dt) {
+  if (!ENTITY || fading) return;
+  const pc = [Math.floor(me.x / S), Math.floor(me.z / S)];
+  if (!ent.seen[pc[0]][pc[1]]) { ent.seen[pc[0]][pc[1]] = true; ent.count++; }
+  const explored = ent.count / (W * D);
+  if (explored >= ENT_SLAM && !ent.slammed) { ent.slammed = true; slam(); }
+  ent.cool -= dt;
+  if (!ent.on) {
+    if (explored < ENT_WAKE || ent.cool > 0) return;
+    // spawn 3-5 rooms away, preferably behind you
+    const d = cellSteps(...pc), fx = Math.sin(me.yaw), fz = Math.cos(me.yaw); let best = null, score = -1e9;
+    for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) if (d[x][z] >= 3 && d[x][z] <= 5) {
+      const sc = -((x + .5) * S - me.x) * fx - ((z + .5) * S - me.z) * fz + Math.random() * 4; if (sc > score) { score = sc; best = [x, z]; }
+    }
+    if (!best) return;
+    Object.assign(ent, { on: true, x: (best[0] + .5) * S, z: (best[1] + .5) * S, fade: 0 });
+    return;
+  }
+  // follow the maze: head for the centre of the next room on the way to you, then straight at you
+  const ec = [Math.floor(ent.x / S), Math.floor(ent.z / S)], d = cellSteps(...pc);
+  let tx = me.x, tz = me.z;
+  if (ec[0] !== pc[0] || ec[1] !== pc[1]) {
+    for (let k = 0; k < 4; k++) if (maze.m[ec[0]][ec[1]] & BIT[k]) { const nx = ec[0] + DX[k], nz = ec[1] + DZ[k]; if (d[nx][nz] === d[ec[0]][ec[1]] - 1) { tx = (nx + .5) * S; tz = (nz + .5) * S; break; } }
+    // line up with the doorway before cutting across, so it never clips a wall corner
+    const ax = Math.abs(tx - (ec[0] + .5) * S) > 1 ? 0 : 1; if (ax) ent.x += Math.sign((ec[0] + .5) * S - ent.x) * Math.min(Math.abs((ec[0] + .5) * S - ent.x), dt * 2); else ent.z += Math.sign((ec[1] + .5) * S - ent.z) * Math.min(Math.abs((ec[1] + .5) * S - ent.z), dt * 2);
+  }
+  const dx = tx - ent.x, dz = tz - ent.z, l = Math.hypot(dx, dz);
+  ent.yaw = Math.atan2(me.x - ent.x, me.z - ent.z);
+  if (d[ec[0]][ec[1]] > ENT_LOSE) { // you got away: it sinks out of sight
+    ent.fade += dt; if (ent.fade > 1.5) { ent.on = false; ent.cool = ENT_COOLDOWN; }
+    return;
+  }
+  ent.fade = Math.max(0, ent.fade - dt);
+  if (l > 0.01) { const k = Math.min(l, ENT_SPEED * dt); ent.x += dx / l * k; ent.z += dz / l * k; }
+  if (Math.hypot(me.x - ent.x, me.z - ent.z) < ENT_REACH) caught();
+}
+function caught() { // the tape cuts out and a new one starts
+  ent.on = false; fading = true; fade.classList.add('on'); popup('TAPE ENDS');
+  setTimeout(() => { newRun(); fade.classList.remove('on'); fading = false; }, 1600);
+}
+function drawEntity() {
+  if (!ent.on) return;
+  const V = [], I = [], c = Math.cos(ent.yaw), sn = Math.sin(ent.yaw), sink = ent.fade * 0.6; // fades by sinking into the dark
+  for (const [px, py, pz, hx, hy, hz] of ENT_BODY) for (let f = 0; f < 6; f++) {
+    const ax = f >> 1, sg = f & 1 ? 1 : -1, n = [0, 0, 0]; n[ax] = sg;
+    const u = (ax + 1) % 3, v = (ax + 2) % 3, h = [hx, hy, hz], base = V.length / 7;
+    for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+      const lp = [px, py, pz]; lp[ax] += sg * h[ax]; lp[u] += a * h[u]; lp[v] += b * h[v];
+      const wx = ent.x + lp[0] * c + lp[2] * sn, wz = ent.z - lp[0] * sn + lp[2] * c;
+      V.push(wx, lp[1] - sink, wz, n[0] * c + n[2] * sn, n[1], -n[0] * sn + n[2] * c, 260); // 256 + 4: dark prop colour
+    }
+    I.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  if (!ent.vao) {
+    ent.vao = g.createVertexArray(); g.bindVertexArray(ent.vao); ent.buf = g.createBuffer(); g.bindBuffer(g.ARRAY_BUFFER, ent.buf);
+    [['P', 3, 0], ['N', 3, 12], ['M', 1, 24]].forEach(([n, k, off], i) => { g.enableVertexAttribArray(i); g.vertexAttribPointer(i, k, g.FLOAT, false, 28, off); });
+    ent.ibuf = g.createBuffer(); g.bindBuffer(g.ELEMENT_ARRAY_BUFFER, ent.ibuf);
+  }
+  g.bindVertexArray(ent.vao); g.bindBuffer(g.ARRAY_BUFFER, ent.buf); g.bufferData(g.ARRAY_BUFFER, new Float32Array(V), g.DYNAMIC_DRAW);
+  g.bindBuffer(g.ELEMENT_ARRAY_BUFFER, ent.ibuf); g.bufferData(g.ELEMENT_ARRAY_BUFFER, new Uint32Array(I), g.DYNAMIC_DRAW);
+  g.disable(g.CULL_FACE); g.drawElements(g.TRIANGLES, I.length, g.UNSIGNED_INT, 0); g.enable(g.CULL_FACE);
+}
+// The warning slam: something heavy hitting a wall a few rooms away. A thump, a crack and a rattle.
+function slam() {
+  ent.shake = 1; // the camcorder jolts, as if you flinched
+  if (!audio) return;
+  const t = audio.currentTime, n = audio.sampleRate * 1.2, buf = audio.createBuffer(2, n, audio.sampleRate);
+  for (let ch = 0; ch < 2; ch++) { const d = buf.getChannelData(ch); let b = 0; for (let i = 0; i < n; i++) { const k = i / audio.sampleRate; b = (b + (Math.random() * 2 - 1) * .3) * .96;
+    d[i] = (Math.sin(2 * Math.PI * 48 * k) * Math.exp(-k * 9) * 1.2 + b * Math.exp(-k * 14) * 1.5 + (Math.random() * 2 - 1) * Math.exp(-k * 5) * .08 * (1 + Math.sin(k * 90))) * (ch ? 0.7 : 1); } } // a little off to one side
+  const src = audio.createBufferSource(), f = audio.createBiquadFilter(), gn = audio.createGain();
+  src.buffer = buf; f.type = 'lowpass'; f.frequency.value = 900; gn.gain.value = 0.9; // muffled: it's behind walls
+  src.connect(f).connect(gn).connect(gain); src.start(t);
+}
+// Its drone: a low growl that swells as it gets closer.
+let drone;
+function droneStep() {
+  if (!audio) return;
+  if (!drone) {
+    const o1 = audio.createOscillator(), o2 = audio.createOscillator(), f = audio.createBiquadFilter(); drone = audio.createGain(); drone.gain.value = 0;
+    o1.type = o2.type = 'sawtooth'; o1.frequency.value = 41; o2.frequency.value = 43.5; f.type = 'lowpass'; f.frequency.value = 180;
+    o1.connect(f); o2.connect(f); f.connect(drone).connect(gain); o1.start(); o2.start();
+  }
+  const dist = ent.on ? Math.hypot(me.x - ent.x, me.z - ent.z) : 1e9;
+  drone.gain.setTargetAtTime(ent.on ? Math.min(0.9, 6 / (dist + 2)) * (1 - Math.min(1, ent.fade)) : 0, audio.currentTime, 0.3);
+}
 
 // Matrices
 const fovY = 78 * Math.PI / 180, near = 0.05, far = 100;
@@ -597,7 +711,8 @@ function frame(now) {
     if (keys.has('KeyD') || keys.has('ArrowRight')) mx += 1; if (keys.has('KeyA') || keys.has('ArrowLeft')) mx -= 1;
     for (const s of touches.values()) if (s.left) { const k = Math.min(innerWidth, innerHeight) * 0.12; mx += (s.x - s.sx) / k; mz -= (s.y - s.sy) / k; }
     const len = Math.hypot(mx, mz); if (len > 1) { mx /= len; mz /= len; }
-    const speed = (keys.has('ShiftLeft') || keys.has('ShiftRight') ? 5 : 3) * dt;
+    const sprint = keys.has('ShiftLeft') || keys.has('ShiftRight') || runHeld; // phone: hold the RUN button
+    const speed = (sprint ? 5 : 3) * dt;
     const fx = Math.sin(me.yaw), fz = Math.cos(me.yaw);
     const dx = (fx * mz + fz * mx) * speed, dz = (fz * mz - fx * mx) * speed; // right = +x when facing +z, as in Unity
     if (!blocked(me.x + dx, me.z)) me.x += dx;
@@ -616,7 +731,7 @@ function frame(now) {
     // key container: walk up to it and search it (E, or tap the button)
     const kd = keySpot && !hasKey ? Math.hypot(keySpot[0] - me.x, keySpot[1] - me.z) : 1e9;
     document.getElementById('act').hidden = !(kd < 1.7);
-    stamp();
+    stamp(); entityStep(dt); droneStep();
   } else me.yaw += dt * 0.08; // slow pan behind the start screen
   // Handheld camcorder (same as PlayerController.cs): a slow drifting wobble and tilt all the time, plus a step rhythm while walking.
   const tt = (now - t0) / 1000, amp = SWAY * (1 + me.walk * 1.5), w = me.walk * SWAY;
@@ -628,12 +743,14 @@ function frame(now) {
   me.sp += (LOOK_SPRING * (me.pitch - me.vp) - LOOK_DAMP * me.sp) * ld; me.vp += me.sp * ld;
   const cam = [me.x + Math.cos(me.yaw) * side, 1.5 + Math.sin(me.bob) * 0.03 * w, me.z - Math.sin(me.yaw) * side];
   const camYaw = me.vy + drift(.37, .83, 1.9) * .45 * amp * deg, camPitch = me.vp + drift(.29, .71, 1.53) * .35 * amp * deg;
-  const camRoll = (drift(.23, .61, 1.31) * .7 * amp + Math.sin(me.bob * .5) * .6 * w) * deg - Math.max(-0.06, Math.min(0.06, me.sy * 0.015)); // leans into fast turns
+  ent.shake = Math.max(0, (ent.shake || 0) - dt * 1.5); const jolt = ent.shake * ent.shake * Math.sin(tt * 47) * 0.02;
+  const camRoll = jolt + (drift(.23, .61, 1.31) * .7 * amp + Math.sin(me.bob * .5) * .6 * w) * deg - Math.max(-0.06, Math.min(0.06, me.sy * 0.015)); // leans into fast turns
   g.useProgram(prog); g.bindFramebuffer(g.FRAMEBUFFER, tape.fb); g.viewport(0, 0, tape.w, tape.h); g.enable(g.DEPTH_TEST); g.enable(g.CULL_FACE);
   g.uniformMatrix4fv(U('VP'), false, viewProj(cam, camYaw, camPitch, canvas.width / canvas.height, camRoll));
   g.uniform3f(U('_Cam'), ...cam); g.uniform1f(U('_T'), (now - t0) / 1000); g.uniform1f(U('_NV'), nv ? 1 : 0);
   g.clear(g.COLOR_BUFFER_BIT | g.DEPTH_BUFFER_BIT);
   g.bindVertexArray(level.vao); g.drawElements(g.TRIANGLES, level.n, g.UNSIGNED_INT, 0);
+  drawEntity();
   // VHS pass to the screen
   g.bindFramebuffer(g.FRAMEBUFFER, null); g.viewport(0, 0, canvas.width, canvas.height); g.disable(g.DEPTH_TEST); g.disable(g.CULL_FACE);
   g.useProgram(vhsProg); g.bindVertexArray(null);

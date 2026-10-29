@@ -72,6 +72,10 @@ public class VhsCamera : MonoBehaviour
         float nw = Screen.height * 0.16f;
         if (GUI.Button(new Rect(Screen.width - nw - Screen.height * 0.04f, (Screen.height - nw) / 2, nw, nw), BackroomsGame.NightVision ? "NIGHT ON" : "NIGHT"))
             BackroomsGame.ToggleNightVision();
+        // RUN: tap to toggle running (phones), bigger, bottom-right above LOOK.
+        float rw = Screen.height * 0.24f;
+        if (GUI.Button(new Rect(Screen.width - rw - Screen.height * 0.04f, Screen.height - bh - rw - Screen.height * 0.08f, rw, rw), PlayerController.RunHeld ? "RUN ON" : "RUN"))
+            PlayerController.RunHeld = !PlayerController.RunHeld;
         // Key item prompt (also E on a keyboard) and the KEY marker once you have it.
         float sw = Screen.height * 0.32f, sh = Screen.height * 0.1f;
         if (BackroomsGame.CanSearch && GUI.Button(new Rect((Screen.width - sw) / 2, Screen.height * 0.7f, sw, sh), "SEARCH"))
