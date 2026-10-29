@@ -22,6 +22,8 @@ public class BackroomsGame : MonoBehaviour
     public static void ToggleNightVision() { NightVision = !NightVision; Popup(NightVision ? "NIGHT SHOT" : "NIGHT SHOT OFF"); }
     public static void Popup(string text) { PopupText = text; PopupAt = Time.time; }
     public bool entityOn = true; // hidden switch for the entity (Entity.cs); off = no entity
+    public static bool Started, Peaceful; // start screen (VhsCamera): NORMAL or PEACEFUL (no entity)
+    public static void Begin(bool peaceful) { Peaceful = peaceful; Started = true; Time.timeScale = 1; }
     public bool debugMode = false; // shows (DEBUG MODE) on the VHS stamp and each room's variant number on its floor
 
     Material mat;
@@ -47,6 +49,7 @@ public class BackroomsGame : MonoBehaviour
         player = CreatePlayer();
         if (entityOn) { entity = gameObject.AddComponent<Entity>(); entity.Init(this, player.transform, mat, cellSize); }
         NewRun();
+        Time.timeScale = 0; // wait on the start screen
     }
 
     void Update()

@@ -64,6 +64,15 @@ public class VhsCamera : MonoBehaviour
     // Camcorder overlay: PLAY in the corner, time and date bottom-left (year pinned to 1996 for the found-footage feel).
     void OnGUI()
     {
+        if (!BackroomsGame.Started) // start screen: title, then NORMAL or PEACEFUL (no entity)
+        {
+            lookStyle ??= new GUIStyle(GUI.skin.label) { fontSize = Screen.height / 10, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, normal = { textColor = new Color(1f, 1f, 0.92f, 0.95f) } };
+            GUI.Label(new Rect(0, Screen.height * 0.2f, Screen.width, Screen.height * 0.2f), "ENDLESS BACKROOMS", lookStyle);
+            float w = Screen.height * 0.4f, h = Screen.height * 0.12f, y = Screen.height * 0.55f;
+            if (GUI.Button(new Rect(Screen.width / 2f - w - 10, y, w, h), "NORMAL")) BackroomsGame.Begin(false);
+            if (GUI.Button(new Rect(Screen.width / 2f + 10, y, w, h), "PEACEFUL")) BackroomsGame.Begin(true);
+            return;
+        }
         // LOOK button bottom-right cycles the shader presets; the new name pops up mid-screen for a moment.
         float bw = Screen.height * 0.22f, bh = Screen.height * 0.08f;
         if (GUI.Button(new Rect(Screen.width - bw - Screen.height * 0.04f, Screen.height - bh - Screen.height * 0.04f, bw, bh), "LOOK"))

@@ -43,7 +43,7 @@ public class Entity : MonoBehaviour
 
     void Update()
     {
-        if (m == null) return;
+        if (m == null || BackroomsGame.Peaceful) return;
         int W = m.GetLength(0), D = m.GetLength(1);
         var pp = player.position;
         (int x, int z) pc = (Mathf.Clamp(Mathf.FloorToInt(pp.x / cell), 0, W - 1), Mathf.Clamp(Mathf.FloorToInt(pp.z / cell), 0, D - 1));

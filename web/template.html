@@ -38,6 +38,7 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 #start .card { display: grid; gap: 14px; width: min(100%, 15em); font-size: clamp(28px, 6vw, 64px); } /* sized in em of the title, so the title can't overflow it and push off-centre */
 #start h1 { margin: 0; font-weight: 400; font-size: 1.5em; line-height: .9; color: var(--paper); letter-spacing: .06em; text-wrap: balance; }
 #start p { margin: 0; font-size: 22px; line-height: 1.15; }
+#start .modes { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
 #start button { font: inherit; font-size: 28px; color: var(--shade); background: var(--paper); border: 0; padding: 10px 22px; justify-self: center; cursor: pointer; letter-spacing: .08em; }
 #start button:focus-visible, #mute:focus-visible, #look:focus-visible, #nv:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 #look { margin-right: 8px; }
@@ -71,7 +72,7 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 <div id="start">
   <div class="card">
     <h1>ENDLESS BACKROOMS</h1>
-    <button id="go" type="button">PLAY</button>
+    <div class="modes"><button id="go" type="button">NORMAL</button><button id="peace" type="button">PEACEFUL</button></div>
     <p id="how" style="font-size:18px;opacity:.75"></p>
   </div>
 </div>
@@ -394,7 +395,7 @@ const touch = matchMedia('(pointer: coarse)').matches;
 how.textContent = touch ? 'Drag left side to walk, tap RUN to run. Drag right side to look.' : 'WASD to walk, Shift to run, mouse to look. Esc frees the mouse.';
 document.getElementById('act').textContent = touch ? 'SEARCH' : 'E: SEARCH';
 hint.textContent = touch ? 'LEFT: WALK  RIGHT: LOOK' : 'WASD + MOUSE / L: LOOK / N: NIGHT';
-if (!g) { how.textContent = 'This browser has no WebGL 2, so the game cannot run here. Try Chrome, Safari 15+ or Firefox.'; document.getElementById('go').hidden = true; }
+if (!g) { how.textContent = 'This browser has no WebGL 2, so the game cannot run here. Try Chrome, Safari 15+ or Firefox.'; document.getElementById('go').hidden = document.getElementById('peace').hidden = true; }
 
 function compile(type, id) { const s = g.createShader(type); g.shaderSource(s, document.getElementById(id).text); g.compileShader(s); if (!g.getShaderParameter(s, g.COMPILE_STATUS)) throw new Error(g.getShaderInfoLog(s)); return s; }
 function program(vs, fs) { const p = g.createProgram(); g.attachShader(p, compile(g.VERTEX_SHADER, vs)); g.attachShader(p, compile(g.FRAGMENT_SHADER, fs)); ['P', 'N', 'M'].forEach((n, i) => g.bindAttribLocation(p, i, n)); g.linkProgram(p); if (!g.getProgramParameter(p, g.LINK_STATUS)) throw new Error(g.getProgramInfoLog(p)); return p; }
@@ -550,12 +551,15 @@ document.getElementById('mute').addEventListener('click', e => {
   muted = !muted; if (gain) gain.gain.value = muted ? 0 : 1; e.currentTarget.textContent = muted ? 'SOUND OFF' : 'SOUND ON';
 });
 
-let playing = false;
-document.getElementById('go').addEventListener('click', () => {
+let playing = false, peaceful = false; // PEACEFUL: no entity, just exploring
+const begin = calm => {
+  peaceful = calm;
   document.getElementById("start").hidden = true; document.getElementById("nv").hidden = false; document.getElementById("runb").hidden = !touch; playing = true; startAudio(); showLook(lookIdx);
   if (!touch) canvas.requestPointerLock?.()?.catch?.(() => {});
   setTimeout(() => hint.classList.add('gone'), 6000);
-});
+};
+document.getElementById('go').addEventListener('click', () => begin(false));
+document.getElementById('peace').addEventListener('click', () => begin(true));
 
 // The entity (Entity.cs does the same). A slam somewhere out of sight once you've explored 30% of the rooms; at 35% it
 // appears a few rooms behind you and follows the maze toward you, lit or dark, a bit faster than walking but slower
@@ -571,7 +575,7 @@ function cellSteps(fx, fz) { // walking distance in rooms from (fx, fz) to every
   return d;
 }
 function entityStep(dt) {
-  if (!ENTITY || fading) return;
+  if (!ENTITY || peaceful || fading) return;
   const pc = [Math.floor(me.x / S), Math.floor(me.z / S)];
   if (!ent.seen[pc[0]][pc[1]]) { ent.seen[pc[0]][pc[1]] = true; ent.count++; }
   const explored = ent.count / (W * D);
