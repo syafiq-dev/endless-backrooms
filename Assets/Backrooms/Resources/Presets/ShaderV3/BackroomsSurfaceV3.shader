@@ -277,9 +277,10 @@ Shader "Backrooms/Surface V3"
                 // Red spill from the EXIT sign: emergency power, so it shows best in the dark.
                 float3 toSign = _ExitPos.xyz - wpos; float dSign = length(toSign);
                 col += albedo * float3(1.0, 0.1, 0.06) * (saturate(dot(n, toSign / dSign)) * 0.7 + 0.3) * 0.3 / (1 + dSign * dSign * 0.8) * ao;
+                col *= 1 + _NV * 9; // NightShot gain: fine in the dark, but lit rooms blow out to white, so you have to switch back
                 // Night vision: an infrared lamp on the camera.
                 float3 toCam = _WorldSpaceCameraPos - wpos; float dCam = length(toCam);
-                col += albedo * _NV * (saturate(dot(n, toCam / dCam)) * 0.8 + 0.2) * 1.4 / (1 + dCam * dCam * 0.12);
+                col += albedo * _NV * (saturate(dot(n, toCam / dCam)) * 0.8 + 0.2) * 1.0 / (1 + dCam * dCam * 0.12);
                 col = 1 - exp(-col * 1.25); // darker exposure
                 col = pow(max(col, 0), float3(1.1, 1.05, 1.2)); // higher contrast
                 float grey = dot(col, float3(0.3, 0.59, 0.11));
@@ -291,7 +292,7 @@ Shader "Backrooms/Surface V3"
                     col = lerp(col, float3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16)));
                 }
                 // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
-                return lerp(_FogColor.rgb * lerp(0.03, 1, saturate(amb * 1.2)), col, exp(-_FogDensity * dCam));
+                return lerp(_FogColor.rgb * lerp(0.03, 1, saturate(amb * 1.2)) * (1 + _NV * 4), col, exp(-_FogDensity * dCam));
             }
 
             half4 frag(Varyings i) : SV_Target

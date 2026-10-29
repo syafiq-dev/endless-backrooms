@@ -310,9 +310,10 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 // Red spill from the EXIT sign: emergency power, so it shows best in the dark.
                 vec3 toSign = _ExitPos.xyz - wpos; float dSign = length(toSign);
                 col += albedo * vec3(1.0, 0.1, 0.06) * (clamp(dot(n, toSign / dSign), 0., 1.) * 0.7 + 0.3) * 0.3 / (1.0 + dSign * dSign * 0.8) * ao;
+                col *= 1.0 + _NV * 9.0; // NightShot gain: fine in the dark, but lit rooms blow out to white, so you have to switch back
                 // Night vision: an infrared lamp on the camera.
                 vec3 toCam = _WorldSpaceCameraPos - wpos; float dCam = length(toCam);
-                col += albedo * _NV * (clamp(dot(n, toCam / dCam), 0., 1.) * 0.8 + 0.2) * 1.4 / (1.0 + dCam * dCam * 0.12);
+                col += albedo * _NV * (clamp(dot(n, toCam / dCam), 0., 1.) * 0.8 + 0.2) * 1.0 / (1.0 + dCam * dCam * 0.12);
                 col = 1.0 - exp(-col * 1.5); // soft shoulder: washed-out highlights instead of hard clipping
                 col = pow(max(col, 0.0), vec3(0.95, 0.95, 1.35)); // camcorder grade: pull blue out, everything leans yellow-green
                 col = mix(col, vec3(1.0, 0.12, 0.08), letters); // on emergency power: ignores flicker and low power
@@ -322,7 +323,7 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                     col = mix(col, vec3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16.0)));
                 }
                 // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
-                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)), col, exp(-_FogDensity * dCam));
+                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam));
             }
 
 
@@ -571,9 +572,10 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 // Red spill from the EXIT sign: emergency power, so it shows best in the dark.
                 vec3 toSign = _ExitPos.xyz - wpos; float dSign = length(toSign);
                 col += albedo * vec3(1.0, 0.1, 0.06) * (clamp(dot(n, toSign / dSign), 0., 1.) * 0.7 + 0.3) * 0.3 / (1.0 + dSign * dSign * 0.8) * ao;
+                col *= 1.0 + _NV * 9.0; // NightShot gain: fine in the dark, but lit rooms blow out to white, so you have to switch back
                 // Night vision: an infrared lamp on the camera.
                 vec3 toCam = _WorldSpaceCameraPos - wpos; float dCam = length(toCam);
-                col += albedo * _NV * (clamp(dot(n, toCam / dCam), 0., 1.) * 0.8 + 0.2) * 1.4 / (1.0 + dCam * dCam * 0.12);
+                col += albedo * _NV * (clamp(dot(n, toCam / dCam), 0., 1.) * 0.8 + 0.2) * 1.0 / (1.0 + dCam * dCam * 0.12);
                 col = 1.0 - exp(-col * 1.8); // brighter exposure, soft shoulder: washed-out highlights instead of hard clipping
                 col = pow(max(col, 0.0), vec3(0.9, 0.97, 1.25)); // camcorder grade: warm yellow rather than green
                 col = mix(col, vec3(1.0, 0.12, 0.08), letters); // on emergency power: ignores flicker and low power
@@ -583,7 +585,7 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                     col = mix(col, vec3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16.0)));
                 }
                 // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
-                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)), col, exp(-_FogDensity * dCam));
+                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam));
             }
 
 
@@ -832,9 +834,10 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 // Red spill from the EXIT sign: emergency power, so it shows best in the dark.
                 vec3 toSign = _ExitPos.xyz - wpos; float dSign = length(toSign);
                 col += albedo * vec3(1.0, 0.1, 0.06) * (clamp(dot(n, toSign / dSign), 0., 1.) * 0.7 + 0.3) * 0.3 / (1.0 + dSign * dSign * 0.8) * ao;
+                col *= 1.0 + _NV * 9.0; // NightShot gain: fine in the dark, but lit rooms blow out to white, so you have to switch back
                 // Night vision: an infrared lamp on the camera.
                 vec3 toCam = _WorldSpaceCameraPos - wpos; float dCam = length(toCam);
-                col += albedo * _NV * (clamp(dot(n, toCam / dCam), 0., 1.) * 0.8 + 0.2) * 1.4 / (1.0 + dCam * dCam * 0.12);
+                col += albedo * _NV * (clamp(dot(n, toCam / dCam), 0., 1.) * 0.8 + 0.2) * 1.0 / (1.0 + dCam * dCam * 0.12);
                 col = 1.0 - exp(-col * 1.25); // darker exposure
                 col = pow(max(col, 0.0), vec3(1.1, 1.05, 1.2)); // higher contrast
                 float grey = dot(col, vec3(0.3, 0.59, 0.11));
@@ -846,7 +849,7 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                     col = mix(col, vec3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16.0)));
                 }
                 // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
-                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)), col, exp(-_FogDensity * dCam));
+                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam));
             }
 
 
@@ -1095,9 +1098,10 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 // Red spill from the EXIT sign: emergency power, so it shows best in the dark.
                 vec3 toSign = _ExitPos.xyz - wpos; float dSign = length(toSign);
                 col += albedo * vec3(1.0, 0.1, 0.06) * (clamp(dot(n, toSign / dSign), 0., 1.) * 0.7 + 0.3) * 0.3 / (1.0 + dSign * dSign * 0.8) * ao;
+                col *= 1.0 + _NV * 9.0; // NightShot gain: fine in the dark, but lit rooms blow out to white, so you have to switch back
                 // Night vision: an infrared lamp on the camera.
                 vec3 toCam = _WorldSpaceCameraPos - wpos; float dCam = length(toCam);
-                col += albedo * _NV * (clamp(dot(n, toCam / dCam), 0., 1.) * 0.8 + 0.2) * 1.4 / (1.0 + dCam * dCam * 0.12);
+                col += albedo * _NV * (clamp(dot(n, toCam / dCam), 0., 1.) * 0.8 + 0.2) * 1.0 / (1.0 + dCam * dCam * 0.12);
                 col = 1.0 - exp(-col * 1.4); // darker, deeper shadows: washed-out highlights instead of hard clipping
                 col = pow(max(col, 0.0), vec3(0.9, 1.05, 1.6)); // orange grade, blue pulled right out
                 col = mix(col, vec3(1.0, 0.12, 0.08), letters); // on emergency power: ignores flicker and low power
@@ -1107,7 +1111,7 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                     col = mix(col, vec3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16.0)));
                 }
                 // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
-                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)), col, exp(-_FogDensity * dCam));
+                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam));
             }
 
 
@@ -1356,9 +1360,10 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 // Red spill from the EXIT sign: emergency power, so it shows best in the dark.
                 vec3 toSign = _ExitPos.xyz - wpos; float dSign = length(toSign);
                 col += albedo * vec3(1.0, 0.1, 0.06) * (clamp(dot(n, toSign / dSign), 0., 1.) * 0.7 + 0.3) * 0.3 / (1.0 + dSign * dSign * 0.8) * ao;
+                col *= 1.0 + _NV * 9.0; // NightShot gain: fine in the dark, but lit rooms blow out to white, so you have to switch back
                 // Night vision: an infrared lamp on the camera.
                 vec3 toCam = _WorldSpaceCameraPos - wpos; float dCam = length(toCam);
-                col += albedo * _NV * (clamp(dot(n, toCam / dCam), 0., 1.) * 0.8 + 0.2) * 1.4 / (1.0 + dCam * dCam * 0.12);
+                col += albedo * _NV * (clamp(dot(n, toCam / dCam), 0., 1.) * 0.8 + 0.2) * 1.0 / (1.0 + dCam * dCam * 0.12);
                 col = 1.0 - exp(-col * 1.5); // soft shoulder: washed-out highlights instead of hard clipping
                 col = pow(max(col, 0.0), vec3(0.95, 1.0, 1.2));
                 col = col * 0.78 + vec3(0.12, 0.08, 0.12); // faded: lifted blacks with a magenta tint
@@ -1369,7 +1374,7 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                     col = mix(col, vec3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16.0)));
                 }
                 // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
-                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)), col, exp(-_FogDensity * dCam));
+                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam));
             }
 
 
