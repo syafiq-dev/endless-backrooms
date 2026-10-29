@@ -25,7 +25,8 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 .hud .row { align-items: end; }
 .play { display: inline-flex; align-items: center; gap: .3em; }
 .play b { width: 0; height: 0; border-style: solid; border-width: .32em 0 .32em .55em; border-color: transparent transparent transparent currentColor; }
-.stamp { font-size: 1.15em; line-height: 1; }
+.stamp { font-size: 2.3em; line-height: 1; white-space: nowrap; }
+.play { font-size: 2em; }
 .stamp .debug { color: var(--debug); }
 .tools { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; justify-content: flex-end; }
 .hud .hint { opacity: .8; transition: opacity 1.2s; font-size: .8em; }
@@ -34,15 +35,16 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 #fade.on { opacity: 1; }
 #start { position: fixed; inset: 0; z-index: 3; display: grid; place-items: center; background: color-mix(in srgb, var(--shade) 55%, transparent);
   padding: 24px max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)); text-align: center; }
-#start .card { display: grid; gap: 14px; max-width: 32ch; }
-#start h1 { margin: 0; font-weight: 400; font-size: clamp(48px, 12vw, 96px); line-height: .9; color: var(--paper); letter-spacing: .06em; text-wrap: balance; }
+#start .card { display: grid; gap: 14px; width: min(100%, 15em); font-size: clamp(28px, 6vw, 64px); } /* sized in em of the title, so the title can't overflow it and push off-centre */
+#start h1 { margin: 0; font-weight: 400; font-size: 1.5em; line-height: .9; color: var(--paper); letter-spacing: .06em; text-wrap: balance; }
 #start p { margin: 0; font-size: 22px; line-height: 1.15; }
 #start button { font: inherit; font-size: 28px; color: var(--shade); background: var(--paper); border: 0; padding: 10px 22px; justify-self: center; cursor: pointer; letter-spacing: .08em; }
-#start button:focus-visible, #mute:focus-visible, #look:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+#start button:focus-visible, #mute:focus-visible, #look:focus-visible, #nv:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 #look { margin-right: 8px; }
 #act { position: fixed; left: 50%; bottom: 22%; transform: translateX(-50%); z-index: 5; font: inherit; font-size: clamp(20px, 4vw, 30px); color: var(--ink); background: color-mix(in srgb, var(--shade) 45%, transparent); border: 1px solid var(--ink); padding: 6px 18px; cursor: pointer; letter-spacing: .08em; }
 #lookname { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; font-size: clamp(32px, 9vw, 72px); color: var(--ink); letter-spacing: .08em; text-shadow: 3px 0 rgba(255, 40, 40, .55), -3px 0 rgba(40, 200, 255, .5); z-index: 5; }
-#mute, #look { pointer-events: auto; font: inherit; font-size: .8em; color: var(--ink); background: none; border: 1px solid color-mix(in srgb, var(--ink) 50%, transparent); padding: 2px 10px; cursor: pointer; }
+#nv.on { color: #7dff86; border-color: #7dff86; }
+#mute, #look, #nv { pointer-events: auto; font: inherit; font-size: .8em; color: var(--ink); background: none; border: 1px solid color-mix(in srgb, var(--ink) 50%, transparent); padding: 2px 10px; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { #fade { transition: none; } }
 </style>
 
@@ -52,7 +54,7 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   <div></div>
   <div class="row">
     <span class="stamp"><span class="debug" id="debug">(DEBUG MODE)</span><br id="debugbr"><span id="clock">PM 5:00:00</span><br><span id="date">OCT. 28 1996</span></span>
-    <span class="tools"><span class="hint" id="hint"></span><button id="look" type="button">LOOK</button><button id="mute" type="button">SOUND ON</button></span>
+    <span class="tools"><span class="hint" id="hint"></span><button id="nv" type="button" aria-pressed="false">NIGHT</button><button id="look" type="button">LOOK</button><button id="mute" type="button">SOUND ON</button></span>
   </div>
 </div>
 <div id="fade"></div>
@@ -68,21 +70,21 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 
 <script id="fs" type="x-shader">#version 300 es
 precision highp float;
-uniform float _CellSize, _WallHeight, _FogDensity, _T, _Debug, _Seed;
-uniform vec4 _FogColor; uniform vec3 _Cam; uniform vec2 _Screen;
+uniform float _CellSize, _WallHeight, _FogDensity, _T, _Debug, _Seed, _NV;
+uniform vec4 _FogColor, _ExitPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
+#define _WorldSpaceCameraPos _Cam
 /*SHADE*/
 void main() {
   float t = _T;
   vec3 col = shade(wp, normalize(wn), wm, t);
-  col = mix(_FogColor.rgb, col, exp(-_FogDensity * distance(wp, _Cam)));
   o = vec4(col, 1);
 }
 </script>
 <script id="vhsfs" type="x-shader">#version 300 es
 precision highp float;
-uniform sampler2D _MainTex; uniform vec2 _SrcSize; uniform float _T;
+uniform sampler2D _MainTex; uniform vec2 _SrcSize; uniform float _T, _NV;
 in vec2 uv0; out vec4 o;
 /*VHS*/
 void main() { o = vec4(vhs(uv0, _T), 1); }
@@ -116,9 +118,10 @@ const VARIANTS = [
   [[-1, 0, .1, 2], [1, 0, .1, 2]],                                                    // 8 Corridor (straight runs only)
 ];
 const CORRIDOR = 8;
+const ARM = 0.25, BEAM = 0.09, BEAM_DROP = 0.45; // archway pillars: + arms (half length, half thickness), and how far the beams hang down
 const rotate = (b, k) => { for (let i = 0; i < k; i++) b = [-b[1], b[0], b[3], b[2]]; return b; };
 // Rare furniture from Props.cs: parts are [x, y, z, half x, half y, half z, colour, spin about z]; colour 0 wood, 1 metal, 2 red, 3 white, 4 dark.
-// Chair, stool, small table, filing cabinet, stop sign.
+// Chair, stool, small table, filing cabinet, stop sign, sofa, fridge, granny chair. Colour 5 olive fabric, 6 rose fabric.
 const PROP_ODDS = [200, 300]; // each run rolls a chance between 1 in 200 and 1 in 300 rooms
 const PROPS = [
   [[0, 0.45, 0, 0.21, 0.025, 0.2, 0], [-0.18, 0.225, 0.17, 0.02, 0.225, 0.02, 0], [0.18, 0.225, 0.17, 0.02, 0.225, 0.02, 0], [-0.18, 0.225, -0.17, 0.02, 0.225, 0.02, 0], [0.18, 0.225, -0.17, 0.02, 0.225, 0.02, 0], [-0.18, 0.72, -0.18, 0.02, 0.25, 0.02, 0], [0.18, 0.72, -0.18, 0.02, 0.25, 0.02, 0], [0, 0.82, -0.18, 0.2, 0.08, 0.015, 0]],
@@ -126,10 +129,17 @@ const PROPS = [
   [[0, 0.74, 0, 0.6, 0.025, 0.4, 0], [-0.55, 0.37, 0.35, 0.03, 0.37, 0.03, 0], [0.55, 0.37, 0.35, 0.03, 0.37, 0.03, 0], [-0.55, 0.37, -0.35, 0.03, 0.37, 0.03, 0], [0.55, 0.37, -0.35, 0.03, 0.37, 0.03, 0]],
   [[0, 0.66, 0, 0.23, 0.66, 0.3, 1], [0, 0.44, 0.301, 0.21, 0.006, 0.002, 4], [0, 0.88, 0.301, 0.21, 0.006, 0.002, 4], [0, 0.3, 0.31, 0.06, 0.012, 0.012, 4], [0, 0.74, 0.31, 0.06, 0.012, 0.012, 4], [0, 1.18, 0.31, 0.06, 0.012, 0.012, 4]],
   [[0, 1.1, 0, 0.03, 1.1, 0.03, 1], [0, 2.0, 0.04, 0.4, 0.166, 0.008, 3, 0], [0, 2.0, 0.04, 0.4, 0.166, 0.008, 3, 45], [0, 2.0, 0.04, 0.4, 0.166, 0.008, 3, 90], [0, 2.0, 0.04, 0.4, 0.166, 0.008, 3, 135], [0, 2.0, 0.05, 0.36, 0.149, 0.008, 2, 0], [0, 2.0, 0.05, 0.36, 0.149, 0.008, 2, 45], [0, 2.0, 0.05, 0.36, 0.149, 0.008, 2, 90], [0, 2.0, 0.05, 0.36, 0.149, 0.008, 2, 135]],
+  [[0, 0.22, 0, 0.95, 0.2, 0.42, 5], [0, 0.47, 0.04, 0.85, 0.06, 0.36, 5], [0, 0.66, -0.33, 0.95, 0.3, 0.1, 5], [-0.86, 0.55, 0, 0.1, 0.13, 0.42, 5], [0.86, 0.55, 0, 0.1, 0.13, 0.42, 5]],
+  [[0, 0.85, 0, 0.35, 0.85, 0.33, 3], [0, 1.15, 0.331, 0.34, 0.006, 0.002, 4], [0.27, 1.45, 0.35, 0.015, 0.15, 0.015, 1], [0.27, 0.8, 0.35, 0.015, 0.2, 0.015, 1]],
+  [[0, 0.42, 0.02, 0.36, 0.08, 0.34, 6], [0, 0.82, -0.29, 0.36, 0.4, 0.07, 6], [-0.32, 0.95, -0.17, 0.04, 0.25, 0.13, 6], [0.32, 0.95, -0.17, 0.04, 0.25, 0.13, 6],
+   [-0.33, 0.58, 0.05, 0.05, 0.08, 0.3, 6], [0.33, 0.58, 0.05, 0.05, 0.08, 0.3, 6],
+   [-0.28, 0.17, 0.26, 0.025, 0.17, 0.025, 0], [0.28, 0.17, 0.26, 0.025, 0.17, 0.025, 0], [-0.28, 0.17, -0.26, 0.025, 0.17, 0.025, 0], [0.28, 0.17, -0.26, 0.025, 0.17, 0.025, 0]],
 ];
 // Props.ExitDoor: single steel door with a lit EXIT sign, origin at the wall face, +z into the room. Colour 256 = sign plate.
 const EXIT_DOOR = [[-0.52, 1.1, 0.03, 0.05, 1.1, 0.05, 4], [0.52, 1.1, 0.03, 0.05, 1.1, 0.05, 4], [0, 2.15, 0.03, 0.57, 0.05, 0.05, 4],
   [0, 1.05, 0.015, 0.47, 1.05, 0.015, 1], [0, 1.0, 0.06, 0.38, 0.035, 0.03, 4], [0, 2.45, 0.08, 0.32, 0.13, 0.08, 4], [0, 2.45, 0.165, 0.29, 0.1, 0.005, 256]];
+// Dead-end doors (Props.FakeDoor): a plain office door with no sign, always locked, set flat against a wall that goes nowhere.
+const FAKE_DOOR = [EXIT_DOOR[0], EXIT_DOOR[1], EXIT_DOOR[2], [0, 1.05, 0.015, 0.47, 1.05, 0.015, 0], [0.36, 1.0, 0.05, 0.03, 0.03, 0.03, 1]];
 // Key items (Props.KeyItems): what the key is hidden in on locked runs. Separate from the random furniture.
 // Against a wall like the exit door: origin at the wall face, +z into the room.
 const KEY_CHANCE = 0.5;
@@ -143,7 +153,7 @@ const KEY_DRAWER = [[0, 0.45, 0.25, 0.3, 0.45, 0.23, 0], [0, 0.3, 0.485, 0.28, 0
 // parts, distance of the centre from the wall, half width, half depth
 const KEY_ITEMS = [[KEY_DESK, 0.42, 0.72, 0.38], [KEY_DRAWER, 0.25, 0.3, 0.23], [KEY_BOX, 0.35, 0.3, 0.28]]; // office desk, drawer unit, cardboard box
 const PROP_BIG = 0.25; // share of random furniture that comes out slightly too big
-const PROP_FOOT = [0.25, 0.2, 0.65, 0.35, 0.1]; // reach from the item's centre, for collisions
+const PROP_FOOT = [0.25, 0.2, 0.65, 0.35, 0.1, 0.75, 0.45, 0.45]; // reach from the item's centre, for collisions
 // 3x3 rotations (row-major) for placing props
 const rx = a => { const c = Math.cos(a), s = Math.sin(a); return [1,0,0, 0,c,-s, 0,s,c]; };
 const ry = a => { const c = Math.cos(a), s = Math.sin(a); return [c,0,s, 0,1,0, -s,0,c]; };
@@ -176,13 +186,42 @@ function generate() {
       if (z + 1 < hz + hd) carve(x, z, 0);
     }
   }
+  // Long halls (Maze.cs): a couple of dead-straight runs that go on far longer than they should.
+  const long = m.map(r => r.map(() => false)), arch = m.map(r => r.map(() => false)), funnel = m.map(r => r.map(() => 0));
+  for (let i = 0; i < Math.max(1, Math.floor(W * D / 250)); i++) {
+    const alongX = Math.random() < 0.5, len = Math.min(10 + rnd(7), (alongX ? W : D) - 1), a0 = rnd((alongX ? W : D) - len), b = rnd(alongX ? D : W);
+    for (let k = 0; k <= len; k++) {
+      const [x, z] = alongX ? [a0 + k, b] : [b, a0 + k]; long[x][z] = true;
+      if (i === 0 && k > len - 3) funnel[x][z] = k - len + 3; // the first long hall ends in a funnel: 3 rooms that close in
+      if (k < len) carve(x, z, alongX ? 1 : 0);
+    }
+  }
+  // Archway halls: open blocks filled with a grid of + pillars joined by low beams, like the footage's endless arches.
+  for (let i = 0; i < Math.floor(W * D / 150); i++) {
+    const hw = 3 + rnd(3), hd = 3 + rnd(3), hx = rnd(W - hw + 1), hz = rnd(D - hd + 1);
+    for (let x = hx; x < hx + hw; x++) for (let z = hz; z < hz + hd; z++) {
+      arch[x][z] = true; long[x][z] = false; funnel[x][z] = 0;
+      if (x + 1 < hx + hw) carve(x, z, 1);
+      if (z + 1 < hz + hd) carve(x, z, 0);
+    }
+  }
+  // The funnel's rooms are walled off at the sides so it stays one straight squeeze, unless that would cut part of the maze off.
+  {
+    const cells = []; for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) if (funnel[x][z]) cells.push([x, z]);
+    const alongX = cells.length > 1 && cells[0][1] === cells[1][1], cut = alongX ? [0, 2] : [1, 3]; // directions to close
+    const saved = [];
+    for (const [x, z] of cells) for (const d of cut) if (m[x][z] & BIT[d]) { m[x][z] &= ~BIT[d]; m[x + DX[d]][z + DZ[d]] &= ~OPP[d]; saved.push([x, z, d]); }
+    const seen = m.map(r => r.map(() => false)), q = [start]; seen[start[0]][start[1]] = true; let n = 1;
+    while (q.length) { const [x, z] = q.pop(); for (let d = 0; d < 4; d++) if (m[x][z] & BIT[d]) { const nx = x + DX[d], nz = z + DZ[d]; if (!seen[nx][nz]) { seen[nx][nz] = true; n++; q.push([nx, nz]); } } }
+    if (n < W * D) for (const [x, z, d] of saved) carve(x, z, d); // would strand rooms: leave the openings
+  }
   // exit = farthest walk from start
   const dist = m.map(r => r.map(() => -1)), q = [start];
   dist[start[0]][start[1]] = 0;
   let exit = start;
   while (q.length) {
     const [x, z] = q.shift();
-    if (dist[x][z] > dist[exit[0]][exit[1]] && m[x][z] !== 15) exit = [x, z]; // needs a wall for the exit door
+    if (dist[x][z] > dist[exit[0]][exit[1]] && m[x][z] !== 15 && !arch[x][z]) exit = [x, z]; // needs a wall for the exit door
     for (let d = 0; d < 4; d++) if (m[x][z] & BIT[d]) { const nx = x + DX[d], nz = z + DZ[d]; if (dist[nx][nz] < 0) { dist[nx][nz] = dist[x][z] + 1; q.push([nx, nz]); } }
   }
   // Half the runs the exit is locked: the key is in a desk or box in the room farthest from both the start and the exit.
@@ -193,24 +232,25 @@ function generate() {
     let best = -1;
     for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) {
       const v = Math.min(dist[x][z], de[x][z]);
-      if (m[x][z] !== 15 && v > best && !(x === start[0] && z === start[1])) { best = v; key = [x, z]; } // needs a wall to stand against
+      if (m[x][z] !== 15 && !arch[x][z] && v > best && !(x === start[0] && z === start[1])) { best = v; key = [x, z]; } // needs a wall to stand against
     }
   }
-  return { m, start, exit, key };
+  return { m, start, exit, key, long, arch, funnel };
 }
 
 const sub = (a, b) => a.map((x, i) => x - b[i]), cross = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]], dot = (a, b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
-function buildMesh(m, exit, key) {
+function buildMesh({ m, exit, key, long, arch, funnel }) {
   const propChance = 1 / (PROP_ODDS[0] + Math.random() * (PROP_ODDS[1] - PROP_ODDS[0])); // new odds every run
   const V = [], I = [], solids = m.map(r => r.map(() => [])); let o = 0;
   const quad = (a, b, c, d, n, v = V, ix = I) => {
     if (dot(cross(sub(b, a), sub(c, a)), n) < 0) [b, d] = [d, b];
     const i = v.length / 7; for (const p of [a, b, c, d]) v.push(...p, ...n, o); ix.push(i, i+1, i+2, i, i+2, i+3);
   };
-  const box = (cx, cz, a, b, h, v, ix) => {
+  const box = (cx, cz, a, b, h, v, ix, y = 0) => { // y > 0: hangs from the ceiling (a beam), so it gets an underside
     quad([cx-a,h,cz-b],[cx-a,h,cz+b],[cx+a,h,cz+b],[cx+a,h,cz-b],[0,1,0], v, ix);
-    quad([cx-a,0,cz+b],[cx+a,0,cz+b],[cx+a,h,cz+b],[cx-a,h,cz+b],[0,0,1], v, ix); quad([cx-a,0,cz-b],[cx+a,0,cz-b],[cx+a,h,cz-b],[cx-a,h,cz-b],[0,0,-1], v, ix);
-    quad([cx+a,0,cz-b],[cx+a,0,cz+b],[cx+a,h,cz+b],[cx+a,h,cz-b],[1,0,0], v, ix); quad([cx-a,0,cz-b],[cx-a,0,cz+b],[cx-a,h,cz+b],[cx-a,h,cz-b],[-1,0,0], v, ix);
+    if (y > 0) quad([cx-a,y,cz-b],[cx-a,y,cz+b],[cx+a,y,cz+b],[cx+a,y,cz-b],[0,-1,0], v, ix);
+    quad([cx-a,y,cz+b],[cx+a,y,cz+b],[cx+a,h,cz+b],[cx-a,h,cz+b],[0,0,1], v, ix); quad([cx-a,y,cz-b],[cx+a,y,cz-b],[cx+a,h,cz-b],[cx-a,h,cz-b],[0,0,-1], v, ix);
+    quad([cx+a,y,cz-b],[cx+a,y,cz+b],[cx+a,h,cz+b],[cx+a,h,cz-b],[1,0,0], v, ix); quad([cx-a,y,cz-b],[cx-a,y,cz+b],[cx-a,h,cz+b],[cx-a,h,cz-b],[-1,0,0], v, ix);
   };
   // walls inset by WALL_HALF (20 cm thick when shared) with a 10 cm baseboard sticking out 2 cm
   const add = (p, n, k) => p.map((v, i) => v + n[i] * k), up = (p, h) => [p[0], p[1] + h, p[2]];
@@ -221,16 +261,42 @@ function buildMesh(m, exit, key) {
     quad(ta, tb, up(tb, TRIM_H), up(ta, TRIM_H), n);
     quad(up(a, TRIM_H), up(b, TRIM_H), up(tb, TRIM_H), up(ta, TRIM_H), [0, 1, 0]);
   };
+  // Dead-end doors: about 3 a map (5 rolled, some rooms do not qualify), well away from the real exit, in rooms with a wall to set them in.
+  const fake = m.map(r => r.map(() => false));
+  for (let x = 0; x < W; x++) for (let z = 0; z < D; z++)
+    fake[x][z] = Math.random() < 5 / (W * D) && m[x][z] !== 15 && !arch[x][z] && Math.abs(x - exit[0]) + Math.abs(z - exit[1]) > 6 && !(key && x === key[0] && z === key[1]);
+  // Plan every room first, so a wrong-way room can copy the one next door.
+  const plan = m.map((r, x) => r.map((open, z) => {
+    if (fake[x][z]) return { variant: 0, turn: 0, twin: 0, fake: true };
+    // straight runs often become narrow corridors (long halls always); otherwise mostly empty, and halls and archway halls always empty
+    const isExit = (x === exit[0] && z === exit[1]) || (key && x === key[0] && z === key[1]), prop = !isExit && !arch[x][z] && Math.random() < propChance; // prop, exit and key rooms stay empty so nothing blocks them
+    if (prop || isExit || arch[x][z]) return { variant: 0, turn: 0, prop, twin: 0 };
+    if ((open === 5 || open === 10) && (long[x][z] || Math.random() < 0.6)) return { variant: CORRIDOR, turn: open === 5 ? 0 : 1, twin: 0 };
+    return { variant: open === 15 || Math.random() < 0.5 ? 0 : 1 + rnd(CORRIDOR - 1), turn: rnd(4), twin: 0 };
+  }));
+  // Wrong-way rooms (~1 in 100): the room you walk into is the room you just left. Same shape, same layout, and the
+  // shader borrows the other room's cell, so the same lights are dead and the same stains are on the carpet.
   for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) {
-    // mostly empty rooms; open crossings (halls) always stay empty
-    const x0 = x*S, x1 = x0+S, z0 = z*S, z1 = z0+S, open = m[x][z];
-    // straight runs often become narrow corridors; otherwise mostly empty, and halls always empty
-    let variant, turn;
-    const isExit = (x === exit[0] && z === exit[1]) || (key && x === key[0] && z === key[1]), prop = !isExit && Math.random() < propChance; // prop, exit and key rooms stay empty so nothing blocks them
-    if (prop || isExit) { variant = 0; turn = 0; }
-    else if ((open === 5 || open === 10) && Math.random() < 0.6) { variant = CORRIDOR; turn = open === 5 ? 0 : 1; }
-    else { variant = open === 15 || Math.random() < 0.5 ? 0 : 1 + rnd(CORRIDOR - 1); turn = rnd(4); }
-    o = m[x][z] + 16 * variant;
+    const p = plan[x][z]; if (Math.random() > 0.01 || p.prop || p.fake || arch[x][z] || m[x][z] === 15 || (x === exit[0] && z === exit[1]) || (key && x === key[0] && z === key[1])) continue;
+    const d = [0, 1, 2, 3].find(d => m[x][z] & BIT[d] && m[x + DX[d]]?.[z + DZ[d]] === m[x][z]); // a matching room it opens onto
+    const q = d === undefined ? null : plan[x + DX[d]][z + DZ[d]];
+    if (q && !q.prop && !q.fake && !q.twin && !arch[x + DX[d]][z + DZ[d]]) Object.assign(p, { variant: q.variant, turn: q.turn, twin: d + 1 });
+  }
+  for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) {
+    const x0 = x*S, x1 = x0+S, z0 = z*S, z1 = z0+S, open = m[x][z], { variant, turn, prop, twin } = plan[x][z];
+    o = m[x][z] + 16 * variant + 1024 * twin;
+    // long halls: a low beam across the corridor every 2 m, so it reads as arches marching off into the distance
+    if (long[x][z] && variant === CORRIDOR) for (let k = 0; k < 3; k++) {
+      const c = 2 * k; if (turn) box(x0 + c, z0 + S/2, BEAM, S/4, H, V, I, H - BEAM_DROP); else box(x0 + S/2, z0 + c, S/4, BEAM, H, V, I, H - BEAM_DROP);
+      // Funnel: every 2 m the walls step in and the ceiling drops, down to a 1.2 m wide, 2.2 m high squeeze.
+      const f = funnel[x][z] ? ((funnel[x][z] - 1) * 3 + k + 1) / 9 : 0; if (!f) continue;
+      const w = 1.35 - 0.75 * f, y = H - 1.2 * f, mid = (w + 1.35) / 2, half = (1.35 - w) / 2, c1 = c + 1;
+      for (const sd of [-1, 1]) {
+        const [bx, bz, a, b] = turn ? [x0 + c1, z0 + S/2 + sd * mid, 1, half] : [x0 + S/2 + sd * mid, z0 + c1, half, 1];
+        box(bx, bz, a, b, H, V, I); solids[x][z].push([bx, bz, a, b]);
+      }
+      if (turn) box(x0 + c1, z0 + S/2, 1, 1.35, H, V, I, y); else box(x0 + S/2, z0 + c1, 1.35, 1, H, V, I, y);
+    }
     for (const b of VARIANTS[variant]) {
       const k = S / 4, r = rotate(b, turn).map(v => v * k), cx = x0 + S/2 + r[0], cz = z0 + S/2 + r[1]; // layouts are drawn for 4 m rooms
       box(cx, cz, r[2], r[3], H, V, I); solids[x][z].push([cx, cz, r[2], r[3]]);
@@ -246,7 +312,7 @@ function buildMesh(m, exit, key) {
   // hanging upside down from the ceiling, or half inside a wall (BackroomsGame.AddProp does the same).
   function addProp(x, z, cx, cz, open) {
     const item = rnd(PROPS.length), a = Math.random() * Math.PI * 2, sc = Math.random() < PROP_BIG ? 1.15 + Math.random() * 0.25 : 1; // now and then slightly too big
-    const r = Math.max((1 + Math.random() * 0.8) * S / 4, PROP_FOOT[item] * sc + 0.8); // keep the middle of the room walkable
+    const r = Math.max((1 + Math.random() * 0.8) * S / 4, PROP_FOOT[item] * sc * 1.3 + 0.8); // keep the middle of the room walkable, even with the item turned 45 degrees
     let pos = [cx + Math.cos(a) * r, 0, cz + Math.sin(a) * r], rot = ry(Math.random() * Math.PI * 2), mode = Math.random();
     const walls = closedSides(open);
     if (mode >= 0.85 && !walls.length) mode = 0;
@@ -274,6 +340,12 @@ function buildMesh(m, exit, key) {
   const ew = closedSides(m[exit[0]][exit[1]]), [nx, , nz] = ew[rnd(ew.length)], dd = S/2 - WALL_HALF;
   const door = [(exit[0]+.5)*S - nx*dd, 0, (exit[1]+.5)*S - nz*dd];
   for (const pt of EXIT_DOOR) part(door, [nz,0,nx, 0,1,0, -nx,0,nz], pt); // local +z faces into the room
+  const fakeDoors = [];
+  for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) if (fake[x][z]) {
+    const fw = closedSides(m[x][z]), [fx, , fz] = fw[rnd(fw.length)], at = [(x+.5)*S - fx*dd, 0, (z+.5)*S - fz*dd];
+    for (const pt of FAKE_DOOR) part(at, [fz,0,fx, 0,1,0, -fx,0,fz], pt);
+    fakeDoors.push(at);
+  }
   // key item (desk, drawer unit or box), against the middle of one of the key room's walls
   let keySpot = null;
   if (key) {
@@ -284,16 +356,27 @@ function buildMesh(m, exit, key) {
     solids[key[0]][key[1]].push([keySpot[0], keySpot[1], kx ? d2 : w, kx ? w : d2]);
   }
   o = 15;
+  // Archway halls: + pillars on a 2 m grid, joined by low beams. A point gets a pillar only when every room it touches is
+  // part of the archway hall, so the edges of the hall stay clear.
+  const near = i => i % 3 ? [Math.floor(i / 3)] : [i / 3 - 1, i / 3];
+  const pillar = (i, j) => near(i).every(x => near(j).every(z => arch[x]?.[z]));
+  for (let i = 0; i <= 3 * W; i++) for (let j = 0; j <= 3 * D; j++) {
+    if (!pillar(i, j)) continue;
+    const px = 2 * i, pz = 2 * j, cx = Math.min(Math.floor(i / 3), W - 1), cz = Math.min(Math.floor(j / 3), D - 1);
+    for (const [a, b] of [[ARM, BEAM], [BEAM, ARM]]) { box(px, pz, a, b, H, V, I); solids[cx][cz].push([px, pz, a, b]); }
+    if (pillar(i + 1, j)) box(px + 1, pz, 1, BEAM, H, V, I, H - BEAM_DROP);
+    if (pillar(i, j + 1)) box(px, pz + 1, BEAM, 1, H, V, I, H - BEAM_DROP);
+  }
   // grid corners: a wall-thick cap wherever a wall touches, otherwise now and then a freestanding column
   const closed = (cx, cz, side) => cx >= 0 && cz >= 0 && cx < W && cz < D && !(m[cx][cz] & side);
   const corners = [...Array(W + 1)].map(() => Array(D + 1).fill(0));
   for (let x = 0; x <= W; x++) for (let z = 0; z <= D; z++) {
     const wall = closed(x-1, z-1, 1) || closed(x-1, z-1, 2) || closed(x, z-1, 1) || closed(x, z-1, 8) || closed(x-1, z, 4) || closed(x-1, z, 2) || closed(x, z, 4) || closed(x, z, 8);
-    const half = wall ? WALL_HALF : Math.random() < 0.2 ? 0.35 : 0;
+    const half = wall ? WALL_HALF : arch[x]?.[z] || arch[x-1]?.[z-1] ? 0 : Math.random() < 0.2 ? 0.35 : 0; // archway halls have their own pillars
     corners[x][z] = half;
     if (half) { box(x*S, z*S, half, half, H, V, I); box(x*S, z*S, half + TRIM, half + TRIM, TRIM_H, V, I); }
   }
-  return { V, I, solids, corners, door, keySpot };
+  return { V, I, solids, corners, door, doorN: [nx, nz], keySpot, fakeDoors };
 }
 
 const canvas = document.getElementById('c'), g = canvas.getContext('webgl2', { antialias: true });
@@ -301,7 +384,7 @@ const how = document.getElementById('how'), hint = document.getElementById('hint
 const touch = matchMedia('(pointer: coarse)').matches;
 how.textContent = touch ? 'Drag left side to walk. Drag right side to look.' : 'WASD to walk, Shift to run, mouse to look. Esc frees the mouse.';
 document.getElementById('act').textContent = touch ? 'SEARCH' : 'E: SEARCH';
-hint.textContent = touch ? 'LEFT: WALK  RIGHT: LOOK' : 'WASD + MOUSE / L: LOOK';
+hint.textContent = touch ? 'LEFT: WALK  RIGHT: LOOK' : 'WASD + MOUSE / L: LOOK / N: NIGHT';
 if (!g) { how.textContent = 'This browser has no WebGL 2, so the game cannot run here. Try Chrome, Safari 15+ or Firefox.'; document.getElementById('go').hidden = true; }
 
 function compile(type, id) { const s = g.createShader(type); g.shaderSource(s, document.getElementById(id).text); g.compileShader(s); if (!g.getShaderParameter(s, g.COMPILE_STATUS)) throw new Error(g.getShaderInfoLog(s)); return s; }
@@ -337,16 +420,17 @@ function makeVao(v, i) {
   const img = new Image(); img.onload = () => { g.activeTexture(g.TEXTURE0 + k); g.bindTexture(g.TEXTURE_2D, tex); g.texImage2D(g.TEXTURE_2D, 0, g.RGB, g.RGB, g.UNSIGNED_BYTE, img); g.generateMipmap(g.TEXTURE_2D); g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR_MIPMAP_LINEAR); g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.REPEAT); }; img.src = src;
 });
 
-let maze, level, door, keySpot, hasKey, atDoor, solids, corners, run = 0;
+let seed = 0, nv = false, fakeDoors = [], atFake = false, maze, level, door, keySpot, hasKey, atDoor, solids, corners, run = 0;
 const me = { x: 0, z: 0, yaw: 0, pitch: 0, bob: 0, walk: 0, vy: 0, vp: 0, sy: 0, sp: 0 }; // yaw/pitch = where you aim; vy/vp = where the camera points, sy/sp = its spin
 const LOOK_SPRING = 90, LOOK_DAMP = 15; // camera follows your aim on a spring, slightly under-damped so it settles with a soft overshoot (PlayerController.cs)
 const SWAY = 1; // handheld camcorder wobble (PlayerController.sway); 0 = tripod-steady
 function newRun() {
   run++; W = D = Math.min(SIZE + GROW * (run - 1), MAX_SIZE);
   maze = generate();
-  const seed = Math.random() * 100; forLooks(() => g.uniform1f(U('_Seed'), seed)); // moves the low-power zones each run
-  const mesh = buildMesh(maze.m, maze.exit, maze.key);
-  level = makeVao(mesh.V, mesh.I); door = mesh.door; keySpot = mesh.keySpot; hasKey = false; atDoor = false;
+  seed = Math.random() * 100; forLooks(() => g.uniform1f(U('_Seed'), seed)); // moves the low-power zones, blackouts and wet patches each run
+  const mesh = buildMesh(maze);
+  const sign = [mesh.door[0] + mesh.doorN[0] * 0.17, 2.45, mesh.door[2] + mesh.doorN[1] * 0.17]; forLooks(() => g.uniform4f(U('_ExitPos'), ...sign, 0)); // its red glow
+  level = makeVao(mesh.V, mesh.I); door = mesh.door; fakeDoors = mesh.fakeDoors; keySpot = mesh.keySpot; hasKey = false; atDoor = false;
   document.getElementById('keyhud').hidden = true; document.getElementById('act').hidden = true;
   solids = mesh.solids; corners = mesh.corners;
   me.x = (maze.start[0] + .5) * S; me.z = (maze.start[1] + .5) * S; me.pitch = 0;
@@ -372,6 +456,18 @@ function blocked(x, z) {
   return false;
 }
 
+// Same noise as the shaders, so footsteps know where the carpet is wet (wetness() in the Surface shaders).
+const fract = v => v - Math.floor(v);
+function hash(x, y) { let a = fract(x * .1031), b = fract(y * .1031), c = fract(x * .1031); const d = a * (b + 33.33) + b * (c + 33.33) + c * (a + 33.33); a += d; b += d; c += d; return fract((a + b) * c); }
+function vnoise(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy, ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy), L = (a, b, t) => a + (b - a) * t;
+  return L(L(hash(ix, iy), hash(ix + 1, iy), ux), L(hash(ix, iy + 1), hash(ix + 1, iy + 1), ux), uy);
+}
+function wetAt(x, z) {
+  const rx = x * .8 + z * .6, rz = z * .8 - x * .6, v = vnoise(rx * .09 + seed * 1.3 + 70, rz * .09 + seed * 1.3 + 70) + vnoise(rx * .9 + 3.3, rz * .9 + 3.3) * .12 - .06;
+  return Math.min(1, Math.max(0, (v - .88) / .04));
+}
+
 // Input
 const keys = new Set(); let look = [0, 0]; const touches = new Map();
 function search() {
@@ -379,7 +475,7 @@ function search() {
   hasKey = true; document.getElementById('act').hidden = true; document.getElementById('keyhud').hidden = false; popup('GOT KEY');
 }
 document.getElementById('act').addEventListener('click', search);
-addEventListener('keydown', e => { keys.add(e.code); if (e.code === 'KeyL') nextLook(); if (e.code === 'KeyE') search(); }); addEventListener('keyup', e => keys.delete(e.code));
+addEventListener('keydown', e => { keys.add(e.code); if (e.code === 'KeyL') nextLook(); if (e.code === 'KeyE') search(); if (e.code === 'KeyN') toggleNV(); }); addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 let dragging = false;
 canvas.addEventListener('mousedown', () => { if (playing && !touch) { canvas.requestPointerLock?.()?.catch?.(() => {}); dragging = true; } });
@@ -414,6 +510,24 @@ function startAudio() {
   } catch { document.getElementById('mute').hidden = true; }
 }
 document.getElementById('look').addEventListener('click', nextLook);
+// Night vision (N or the NIGHT button): infrared lamp + green NightShot picture. No battery, it just works.
+function toggleNV() { nv = !nv; const b = document.getElementById('nv'); b.classList.toggle('on', nv); b.setAttribute('aria-pressed', nv); popup(nv ? 'NIGHT SHOT' : 'NIGHT SHOT OFF'); }
+document.getElementById('nv').addEventListener('click', toggleNV);
+// Footsteps: a soft carpet thud per step (heavier when running), and a wet squelch on soaked carpet.
+let stepNoise;
+function footstep(run, wet) {
+  if (!audio) return;
+  if (!stepNoise) { const n = audio.sampleRate * 0.4; stepNoise = audio.createBuffer(1, n, audio.sampleRate); const d = stepNoise.getChannelData(0); let b = 0; for (let i = 0; i < n; i++) { b = (b + (Math.random() * 2 - 1) * .2) * .9; d[i] = b; } }
+  const t = audio.currentTime, play = (freq, q, peak, len, rate) => {
+    const src = audio.createBufferSource(), f = audio.createBiquadFilter(), env = audio.createGain();
+    src.buffer = stepNoise; src.playbackRate.value = rate; f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q;
+    env.gain.setValueAtTime(0, t); env.gain.linearRampToValueAtTime(peak, t + 0.012); env.gain.exponentialRampToValueAtTime(0.001, t + len);
+    src.connect(f).connect(env).connect(gain); src.start(t, Math.random() * 0.2); src.stop(t + len + 0.05);
+    return f;
+  };
+  play(180 + Math.random() * 60, 0.8, (run ? 0.9 : 0.6) * (0.85 + Math.random() * 0.3), 0.12, 0.9 + Math.random() * 0.2); // carpet thud
+  if (wet > 0.3) { const f = play(900, 3, 0.35 * wet, 0.22, 1); f.frequency.setValueAtTime(1400, t); f.frequency.exponentialRampToValueAtTime(500, t + 0.2); } // squelch
+}
 document.getElementById('mute').addEventListener('click', e => {
   muted = !muted; if (gain) gain.gain.value = muted ? 0 : 1; e.currentTarget.textContent = muted ? 'SOUND OFF' : 'SOUND ON';
 });
@@ -485,12 +599,17 @@ function frame(now) {
     const dx = (fx * mz + fz * mx) * speed, dz = (fz * mz - fx * mx) * speed; // right = +x when facing +z, as in Unity
     if (!blocked(me.x + dx, me.z)) me.x += dx;
     if (!blocked(me.x, me.z + dz)) me.z += dz;
-    me.bob += Math.hypot(mx, mz) * dt * 9; me.walk += (Math.hypot(mx, mz) - me.walk) * Math.min(1, dt * 5);
+    const step = Math.floor(me.bob / Math.PI), running = speed / dt > 4;
+    me.bob += Math.hypot(mx, mz) * dt * 9 * (running ? 1.3 : 1);
+    if (Math.floor(me.bob / Math.PI) !== step) footstep(running, wetAt(me.x, me.z)); // a footfall at every dip of the bob me.walk += (Math.hypot(mx, mz) - me.walk) * Math.min(1, dt * 5);
     const ex = door[0] - me.x, ez = door[2] - me.z;
     const near = ex * ex + ez * ez < 1.2 * 1.2;
     if (near && keySpot && !hasKey) { if (!atDoor) popup('LOCKED'); } // locked runs: find the key first
     else if (!fading && near) { fading = true; fade.classList.add('on'); setTimeout(() => { newRun(); fade.classList.remove('on'); fading = false; }, 550); }
     atDoor = near;
+    const fakeNear = fakeDoors.some(f => (f[0] - me.x) ** 2 + (f[2] - me.z) ** 2 < 1.2 * 1.2); // dead-end doors never open
+    if (fakeNear && !atFake) popup('LOCKED');
+    atFake = fakeNear;
     // key container: walk up to it and search it (E, or tap the button)
     const kd = keySpot && !hasKey ? Math.hypot(keySpot[0] - me.x, keySpot[1] - me.z) : 1e9;
     document.getElementById('act').hidden = !(kd < 1.7);
@@ -509,14 +628,14 @@ function frame(now) {
   const camRoll = (drift(.23, .61, 1.31) * .7 * amp + Math.sin(me.bob * .5) * .6 * w) * deg - Math.max(-0.06, Math.min(0.06, me.sy * 0.015)); // leans into fast turns
   g.useProgram(prog); g.bindFramebuffer(g.FRAMEBUFFER, tape.fb); g.viewport(0, 0, tape.w, tape.h); g.enable(g.DEPTH_TEST); g.enable(g.CULL_FACE);
   g.uniformMatrix4fv(U('VP'), false, viewProj(cam, camYaw, camPitch, canvas.width / canvas.height, camRoll));
-  g.uniform3f(U('_Cam'), ...cam); g.uniform1f(U('_T'), (now - t0) / 1000);
+  g.uniform3f(U('_Cam'), ...cam); g.uniform1f(U('_T'), (now - t0) / 1000); g.uniform1f(U('_NV'), nv ? 1 : 0);
   g.clear(g.COLOR_BUFFER_BIT | g.DEPTH_BUFFER_BIT);
   g.bindVertexArray(level.vao); g.drawElements(g.TRIANGLES, level.n, g.UNSIGNED_INT, 0);
   // VHS pass to the screen
   g.bindFramebuffer(g.FRAMEBUFFER, null); g.viewport(0, 0, canvas.width, canvas.height); g.disable(g.DEPTH_TEST); g.disable(g.CULL_FACE);
   g.useProgram(vhsProg); g.bindVertexArray(null);
   g.activeTexture(g.TEXTURE2); g.bindTexture(g.TEXTURE_2D, tape.tex);
-  g.uniform1i(VU('_MainTex'), 2); g.uniform2f(VU('_SrcSize'), tape.w, tape.h); g.uniform1f(VU('_T'), (now - t0) / 1000);
+  g.uniform1i(VU('_MainTex'), 2); g.uniform2f(VU('_SrcSize'), tape.w, tape.h); g.uniform1f(VU('_T'), (now - t0) / 1000); g.uniform1f(VU('_NV'), nv ? 1 : 0);
   g.drawArrays(g.TRIANGLES, 0, 3);
   requestAnimationFrame(frame);
 }

@@ -68,6 +68,9 @@ public class VhsCamera : MonoBehaviour
         float bw = Screen.height * 0.22f, bh = Screen.height * 0.08f;
         if (GUI.Button(new Rect(Screen.width - bw - Screen.height * 0.04f, Screen.height - bh - Screen.height * 0.04f, bw, bh), "LOOK"))
             FindAnyObjectByType<BackroomsGame>()?.NextLook();
+        // NIGHT button next to it (or N): night vision.
+        if (GUI.Button(new Rect(Screen.width - 2 * bw - Screen.height * 0.07f, Screen.height - bh - Screen.height * 0.04f, bw, bh), BackroomsGame.NightVision ? "NIGHT ON" : "NIGHT"))
+            BackroomsGame.ToggleNightVision();
         // Key item prompt (also E on a keyboard) and the KEY marker once you have it.
         float sw = Screen.height * 0.32f, sh = Screen.height * 0.1f;
         if (BackroomsGame.CanSearch && GUI.Button(new Rect((Screen.width - sw) / 2, Screen.height * 0.7f, sw, sh), "SEARCH"))
@@ -80,7 +83,7 @@ public class VhsCamera : MonoBehaviour
         if (!dateStamp) return;
         if (style == null)
         {
-            style = new GUIStyle(GUI.skin.label) { fontSize = Screen.height / 16, fontStyle = FontStyle.Bold };
+            style = new GUIStyle(GUI.skin.label) { fontSize = Screen.height / 8, fontStyle = FontStyle.Bold }; // big camcorder text
             style.normal.textColor = new Color(1f, 1f, 0.92f, 0.9f);
         }
         float m = Screen.height * 0.05f;
@@ -89,7 +92,7 @@ public class VhsCamera : MonoBehaviour
         var now = System.DateTime.Now;
         string stamp = now.ToString("tt h:mm:ss") + "\n" + now.ToString("MMM. dd").ToUpper() + " 1996";
         GUI.Label(new Rect(m, Screen.height - m - style.fontSize * 2.6f, Screen.width, style.fontSize * 3), stamp, style);
-        if (Shader.GetGlobalFloat("_Debug") > 0) // set by BackroomsGame.debugMode
+        if (Shader.GetGlobalFloat("_Debug") > 0) // set by BackroomsGame.debugMode; sits above the stamp
         {
             debugStyle ??= new GUIStyle(style) { normal = { textColor = new Color(0.3f, 1f, 0.35f, 0.95f) } };
             GUI.Label(new Rect(m, Screen.height - m - style.fontSize * 3.9f, Screen.width, style.fontSize * 1.5f), "(DEBUG MODE)", debugStyle);

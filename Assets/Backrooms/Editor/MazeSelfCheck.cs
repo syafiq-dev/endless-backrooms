@@ -8,7 +8,7 @@ public static class MazeSelfCheck
     {
         for (int seed = 0; seed < 200; seed++)
         {
-            var m = Maze.Generate(12, 9, seed, 0.15f, out var start, out var exit);
+            var m = Maze.Generate(12, 9, seed, 0.15f, out var start, out var exit, out _);
             var dist = Maze.Distances(m, start);
             for (int x = 0; x < 12; x++)
                 for (int z = 0; z < 9; z++)

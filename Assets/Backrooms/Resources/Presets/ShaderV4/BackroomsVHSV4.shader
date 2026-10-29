@@ -21,6 +21,7 @@ Shader "Backrooms/VHS V4"
 
             TEXTURE2D(_MainTex); SAMPLER(sampler_MainTex);
             float2 _SrcSize; // frame size in pixels, set from VhsCamera.cs
+            float _NV; // 1 = night vision mode (VhsCamera.cs)
 
             struct Attributes { float4 positionOS : POSITION; float2 uv : TEXCOORD0; };
             struct Varyings { float4 positionCS : SV_POSITION; float2 uv : TEXCOORD0; };
@@ -61,19 +62,19 @@ Shader "Backrooms/VHS V4"
                 uv.x += shift;
 
                 // Luma: three taps, fairly sharp.
-                float y = luma(tap(uv)) * 0.4 + (luma(tap(uv + float2(px.x, 0))) + luma(tap(uv - float2(px.x, 0)))) * 0.2
-                        + (luma(tap(uv + float2(px.x * 2, 0))) + luma(tap(uv - float2(px.x * 2, 0)))) * 0.1; // softer, like a cheap lens
-                // Chroma: smeared wide and pulled to the right.
-                float2 c = chroma(tap(uv + float2(px.x * 1, 0))) + chroma(tap(uv + float2(px.x * 3, 0)))
-                         + chroma(tap(uv + float2(px.x * 5, 0))) + chroma(tap(uv - float2(px.x * 1, 0)))
-                         + chroma(tap(uv + float2(px.x * 7, 0)));
+                float y = luma(tap(uv)) * 0.5 + (luma(tap(uv + float2(px.x, 0))) + luma(tap(uv - float2(px.x, 0)))) * 0.2
+                        + (luma(tap(uv + float2(px.x * 2, 0))) + luma(tap(uv - float2(px.x * 2, 0)))) * 0.05; // soft lens falloff; wide taps read as a double image
+                // Chroma: smeared and pulled a little to the right.
+                float2 c = chroma(tap(uv)) + chroma(tap(uv + float2(px.x * 1, 0)))
+                         + chroma(tap(uv + float2(px.x * 2, 0))) + chroma(tap(uv - float2(px.x * 1, 0)))
+                         + chroma(tap(uv + float2(px.x * 3, 0)));
                 c *= 0.2 * 1.15; // average, slightly oversaturated
                 float3 col = float3(y + 0.956 * c.x + 0.621 * c.y, y - 0.272 * c.x - 0.647 * c.y, y - 1.106 * c.x + 1.703 * c.y);
 
                 // Bloom: bright spots glow outward (cheap 8-tap ring).
-                float3 glow = tap(uv + float2(px.x * 9, 0)) + tap(uv - float2(px.x * 9, 0)) + tap(uv + float2(0, px.y * 9)) + tap(uv - float2(0, px.y * 9))
-                            + tap(uv + px * 6) + tap(uv - px * 6) + tap(uv + float2(px.x, -px.y) * 6) + tap(uv + float2(-px.x, px.y) * 6);
-                col += max(glow * 0.125 - 0.6, 0) * 1.1;
+                float3 glow = tap(uv + float2(px.x * 4, 0)) + tap(uv - float2(px.x * 4, 0)) + tap(uv + float2(0, px.y * 4)) + tap(uv - float2(0, px.y * 4))
+                            + tap(uv + px * 2.5) + tap(uv - px * 2.5) + tap(uv + float2(px.x, -px.y) * 2.5) + tap(uv + float2(-px.x, px.y) * 2.5);
+                col += max(glow * 0.125 - 0.6, 0) * 0.9; // close taps: lights soften instead of echoing
 
                 // Tape: milky blacks, snow, scanlines, brighter noise inside the tracking band.
                 col = col * 0.86 + 0.08; // hazier
@@ -81,6 +82,10 @@ Shader "Backrooms/VHS V4"
                 float snow = vhash(uv * _SrcSize + frac(t) * 911);
                 col += (snow - 0.5) * (0.07 + band * 0.15 + head * 0.4);
                 col *= 0.96 + 0.04 * sin(uv.y * _SrcSize.y * 3.14159);
+
+                // Night vision: green mono, gain pushed up, extra grain like a cheap camcorder's NightShot.
+                float nvl = 1 - exp(-luma(col) * 2.4);
+                col = lerp(col, float3(0.3, 1.0, 0.35) * (nvl + (snow - 0.5) * 0.12), _NV);
 
                 // Vignette, a bit stronger in the corners like a cheap camcorder lens.
                 float2 v = uv - 0.5;

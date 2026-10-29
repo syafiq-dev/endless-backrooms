@@ -26,6 +26,8 @@ Shader "Backrooms/Surface V4"
             float4 _FogColor;
             float _Debug; // 1 = paint each room's variant number on its floor
             float _Seed;  // per run, moves the low-power zones
+            float _NV;    // 1 = night vision: an infrared lamp on the camera (VhsCamera.cs)
+            float4 _ExitPos; // the EXIT sign, whose red glow lights the dark around it
             // Mapped in world space (metres), so no UVs needed. Textures from the 2022 project.
             TEXTURE2D(_WallTex); SAMPLER(sampler_WallTex);
             TEXTURE2D(_CarpetTex); SAMPLER(sampler_CarpetTex);
@@ -114,7 +116,10 @@ Shader "Backrooms/Surface V4"
                 on *= lerp(0.3, 1, power);
                 // Dark rooms: ~1 room in 20, in small clusters, with the power nearly gone (10% brightness).
                 float dark = lerp(0.1, 1, smoothstep(0.14, 0.16, vnoise(cell * 0.5 + _Seed * 1.7 + 50)));
-                return float3(on * dark, lerp(0.8, 1, on) * lerp(0.35, 1, power) * dark, power);
+                // Blackouts: big patches (~1 room in 12) where the power is all but gone: 2% light, most panels dead, a few faint.
+                float black = smoothstep(0.17, 0.2, vnoise(cell * 0.3 + _Seed * 2.3 + 90));
+                float faint = hash(cell * 3.1 + 4.4) < 0.2 ? 0.12 : 0;
+                return float3(lerp(faint, on * dark, black), lerp(0.8, 1, on) * lerp(0.35, 1, power) * dark * lerp(0.02, 1, black), power);
             }
 
             // Ceiling panels of one room: one slot per 3 x 3 tiles (9 per room), but each slot rolls its own fitting so the
@@ -148,6 +153,14 @@ Shader "Backrooms/Surface V4"
                     }
             }
 
+            // Rare wet carpet (~2% of the floor): irregular soaked patches, on rotated noise so they never line up with the room grid.
+            // The game code mirrors this (wetAt) so footsteps squelch on them.
+            float wetness(float2 xz)
+            {
+                float2 r = float2(xz.x * 0.8 + xz.y * 0.6, xz.y * 0.8 - xz.x * 0.6);
+                return smoothstep(0.88, 0.92, vnoise(r * 0.09 + _Seed * 1.3 + 70) + vnoise(r * 0.9 + 3.3) * 0.12 - 0.06);
+            }
+
             float3 shade(float3 p, float3 n, float mask, float t)
             {
                 float s = _CellSize, H = _WallHeight, tile = s / 9; // 6 m cell -> 0.67 m ceiling tiles
@@ -155,6 +168,12 @@ Shader "Backrooms/Surface V4"
                 // Which cell this pixel belongs to. Nudge along the normal so a wall picks the cell it faces.
                 float2 cell = floor((p.xz + n.xz * 0.05) / s);
                 float2 local = p.xz - cell * s; // 0..s inside the cell
+                // Wrong-way rooms: a copy of the room next door borrows that room's cell, so its lights, stains and tiles repeat.
+                float3 wpos = p; // the real position, for fog and the lights you carry
+                float twin = floor(round(mask) / 1024);
+                mask -= twin * 1024;
+                float2 shift = twin < 0.5 ? float2(0, 0) : twin < 1.5 ? float2(0, 1) : twin < 2.5 ? float2(1, 0) : twin < 3.5 ? float2(0, -1) : float2(-1, 0);
+                cell += shift; p.xz += shift * s;
                 // Soft shadows where walls meet. Mask bits: 1 N(+z), 2 E(+x), 4 S, 8 W; set = open.
                 float m = fmod(round(mask), 16); // low 4 bits: open sides; the rest: room variant
                 float openN = fmod(m, 2), openE = fmod(floor(m / 2), 2), openS = fmod(floor(m / 4), 2), openW = floor(m / 8);
@@ -199,7 +218,9 @@ Shader "Backrooms/Surface V4"
                            : pm < 1.5 ? float3(0.55, 0.56, 0.55)  // metal
                            : pm < 2.5 ? float3(0.75, 0.08, 0.06)  // stop-sign red
                            : pm < 3.5 ? float3(0.90, 0.90, 0.88)  // white
-                           : float3(0.12, 0.12, 0.12);            // dark trim
+                           : pm < 4.5 ? float3(0.12, 0.12, 0.12)  // dark trim
+                           : pm < 5.5 ? float3(0.36, 0.33, 0.20)  // worn olive sofa fabric
+                           : float3(0.62, 0.42, 0.40);            // faded rose armchair fabric
                     ao = 1;
                 }
                 else if (n.y > 0.5)
@@ -216,8 +237,11 @@ Shader "Backrooms/Surface V4"
                                       min(lerp(s - local.x, 1e3, openE), lerp(local.x, 1e3, openW)));
                     float damp = (1 - smoothstep(0.1, 0.9, dWall)) * smoothstep(0.35, 0.7, vnoise(p.xz * 1.3 + 5));
                     albedo *= 1 - damp * float3(0.35, 0.38, 0.5);
+                    float wet = wetness(p.xz);
+                    albedo *= 1 - wet * float3(0.55, 0.5, 0.35);
+                    emissive += wet * 0.12 * min(pool, 2); // a dull sheen under the lights
                 }
-                else if (n.y < -0.5)
+                else if (n.y < -0.5 && p.y > H - 0.05) // archway beam undersides fall through to paint
                 {
                     // Drop ceiling: cream tiles, thin grid lines, glowing panel with a soft halo.
                     float2 g = abs(frac(local / tile) - 0.5);
@@ -250,6 +274,12 @@ Shader "Backrooms/Surface V4"
 
                 float3 lightCol = lerp(float3(1.0, 0.55, 0.25), float3(1.0, 0.72, 0.42), power); // amber // low power runs warm
                 float3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
+                // Red spill from the EXIT sign: emergency power, so it shows best in the dark.
+                float3 toSign = _ExitPos.xyz - wpos; float dSign = length(toSign);
+                col += albedo * float3(1.0, 0.1, 0.06) * (saturate(dot(n, toSign / dSign)) * 0.7 + 0.3) * 0.3 / (1 + dSign * dSign * 0.8) * ao;
+                // Night vision: an infrared lamp on the camera.
+                float3 toCam = _WorldSpaceCameraPos - wpos; float dCam = length(toCam);
+                col += albedo * _NV * (saturate(dot(n, toCam / dCam)) * 0.8 + 0.2) * 1.4 / (1 + dCam * dCam * 0.12);
                 col = 1 - exp(-col * 1.4); // darker, deeper shadows: washed-out highlights instead of hard clipping
                 col = pow(max(col, 0), float3(0.9, 1.05, 1.6)); // orange grade, blue pulled right out
                 col = lerp(col, float3(1.0, 0.12, 0.08), letters); // on emergency power: ignores flicker and low power
@@ -258,7 +288,8 @@ Shader "Backrooms/Surface V4"
                     float2 dp = float2(local.x - s * 0.5, local.y - s * 0.5 - 0.6) / 0.45; // 0.45 x 0.9 m digit, reads upright facing +z
                     col = lerp(col, float3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16)));
                 }
-                return col;
+                // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
+                return lerp(_FogColor.rgb * lerp(0.03, 1, saturate(amb * 1.2)), col, exp(-_FogDensity * dCam));
             }
 
             half4 frag(Varyings i) : SV_Target
@@ -266,9 +297,7 @@ Shader "Backrooms/Surface V4"
                 float t = _Time.y;
                 float3 col = shade(i.positionWS, normalize(i.normalWS), i.mask, t);
 
-                // Fog
-                float dist = distance(i.positionWS, _WorldSpaceCameraPos);
-                col = lerp(_FogColor.rgb, col, exp(-_FogDensity * dist));
+                // Fog is done in shade(), lit by the room it is in.
 
                 // Grain and vignette happen in the VHS pass (BackroomsVHS.shader).
 
