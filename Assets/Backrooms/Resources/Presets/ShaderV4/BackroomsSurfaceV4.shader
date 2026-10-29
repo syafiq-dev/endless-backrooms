@@ -28,6 +28,7 @@ Shader "Backrooms/Surface V4"
             float _Seed;  // per run, moves the low-power zones
             float _NV;    // 1 = night vision: an infrared lamp on the camera (VhsCamera.cs)
             float4 _ExitPos; // the EXIT sign, whose red glow lights the dark around it
+            float4 _EntPos;  // the entity's chest (xyz) and how strong its black aura is (w, 0 = no entity) (Entity.cs)
             // Mapped in world space (metres), so no UVs needed. Textures from the 2022 project.
             TEXTURE2D(_WallTex); SAMPLER(sampler_WallTex);
             TEXTURE2D(_CarpetTex); SAMPLER(sampler_CarpetTex);
@@ -220,7 +221,8 @@ Shader "Backrooms/Surface V4"
                            : pm < 3.5 ? float3(0.90, 0.90, 0.88)  // white
                            : pm < 4.5 ? float3(0.12, 0.12, 0.12)  // dark trim
                            : pm < 5.5 ? float3(0.36, 0.33, 0.20)  // worn olive sofa fabric
-                           : float3(0.62, 0.42, 0.40);            // faded rose armchair fabric
+                           : pm < 6.5 ? float3(0.62, 0.42, 0.40)  // faded rose armchair fabric
+                           : float3(0.004, 0.004, 0.004);         // the entity's black wire
                     ao = 1;
                 }
                 else if (n.y > 0.5)
@@ -290,7 +292,12 @@ Shader "Backrooms/Surface V4"
                     col = lerp(col, float3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16)));
                 }
                 // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
-                return lerp(_FogColor.rgb * lerp(0.03, 1, saturate(amb * 1.2)) * (1 + _NV * 4), col, exp(-_FogDensity * dCam));
+                // The entity's black aura: darkens whatever you see through the air around it (closest point of the view ray to its chest).
+                float3 rd = wpos - _WorldSpaceCameraPos;
+                float3 ea = _WorldSpaceCameraPos + rd * saturate(dot(_EntPos.xyz - _WorldSpaceCameraPos, rd) / dot(rd, rd)) - _EntPos.xyz;
+                ea.y *= 0.55; // taller than it is wide
+                float aura = _EntPos.w * exp(-dot(ea, ea) * 1.6) * (0.7 + 0.3 * vnoise(wpos.xz * 4 + wpos.y * 3 + t * 3)); // smoky edge
+                return lerp(_FogColor.rgb * lerp(0.03, 1, saturate(amb * 1.2)) * (1 + _NV * 4), col, exp(-_FogDensity * dCam)) * (1 - 0.95 * aura);
             }
 
             half4 frag(Varyings i) : SV_Target

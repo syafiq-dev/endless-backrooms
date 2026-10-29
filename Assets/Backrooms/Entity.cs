@@ -8,6 +8,7 @@ public class Entity : MonoBehaviour
 {
     public float slamAt = 0.30f, wakeAt = 0.35f, speed = 3.4f, reach = 0.9f, cooldown = 25f;
     public int loseRooms = 6;
+    public static float Explored; // share of rooms you've been in this run, shown in debug mode
 
     static readonly int[] DX = { 0, 1, 0, -1 }, DZ = { 1, 0, -1, 0 };
     BackroomsGame game;
@@ -18,6 +19,7 @@ public class Entity : MonoBehaviour
     bool on, slammed;
     float cool, fade, cell;
     Transform body;
+    Mesh mesh;
     AudioSource drone, sfx;
     AudioClip slam;
 
@@ -25,7 +27,7 @@ public class Entity : MonoBehaviour
     {
         game = g; player = p; cell = cellSize;
         var go = new GameObject("Entity");
-        go.AddComponent<MeshFilter>().sharedMesh = BuildBody();
+        go.AddComponent<MeshFilter>().sharedMesh = mesh = new Mesh { name = "Entity" };
         go.AddComponent<MeshRenderer>().sharedMaterial = mat;
         body = go.transform;
         go.SetActive(false);
@@ -37,18 +39,20 @@ public class Entity : MonoBehaviour
 
     public void NewRun(int[,] maze)
     {
-        m = maze; seen = new bool[m.GetLength(0), m.GetLength(1)]; count = 0; slammed = false; on = false; cool = 0;
+        m = maze; seen = new bool[m.GetLength(0), m.GetLength(1)]; count = 0; Explored = 0; slammed = false; on = false; cool = 0;
         if (body) body.gameObject.SetActive(false);
     }
 
     void Update()
     {
-        if (m == null || BackroomsGame.Peaceful) return;
+        if (m == null) return;
+        Shader.SetGlobalVector("_EntPos", on ? new Vector4(body.position.x, 1.5f + body.position.y, body.position.z, 1 - Mathf.Min(1, fade / 1.5f)) : Vector4.zero); // its black aura
         int W = m.GetLength(0), D = m.GetLength(1);
         var pp = player.position;
         (int x, int z) pc = (Mathf.Clamp(Mathf.FloorToInt(pp.x / cell), 0, W - 1), Mathf.Clamp(Mathf.FloorToInt(pp.z / cell), 0, D - 1));
         if (!seen[pc.x, pc.z]) { seen[pc.x, pc.z] = true; count++; }
-        float explored = (float)count / (W * D);
+        float explored = Explored = (float)count / (W * D);
+        if (BackroomsGame.Easy) return; // still counted, for the debug readout
         if (explored >= slamAt && !slammed) { slammed = true; sfx.PlayOneShot(slam, 0.9f); } // the warning
         cool -= Time.deltaTime;
         var d = Maze.Distances(m, pc);
@@ -100,38 +104,49 @@ public class Entity : MonoBehaviour
         }
         var toPlayer = new Vector3(pp.x - ep.x, 0, pp.z - ep.z);
         body.position = new Vector3(ep.x, -fade * 0.6f, ep.z);
+        Pose(mesh, Time.time);
         if (toPlayer.sqrMagnitude > 0.001f) body.rotation = Quaternion.LookRotation(toPlayer);
         drone.volume = Mathf.Min(0.9f, 6 / (toPlayer.magnitude + 2)) * (1 - Mathf.Min(1, fade)); // a low growl that swells as it closes in
         if (on && toPlayer.magnitude < reach) { on = false; body.gameObject.SetActive(false); game.Caught(); }
     }
 
-    // Tall and thin, long arms, small head; +z faces you. Painted with the dark prop colour (uv0.x = 256 + 4).
-    static Mesh BuildBody()
+    // A stick man of black wire, crooked and alien: hunched, head jutting and tilted, one shoulder low, arms hanging past the
+    // knees, the right knee bent the wrong way. Joints in metres, +z faces you; bones (joint, joint, radius), each drawn as two
+    // strands twisted round each other. Same numbers as ENT_J / ENT_BONES in the browser build. Painted black (uv0.x = 256 + 7).
+    static readonly Vector3[] Joints = { new Vector3(0, 1.05f, 0), new Vector3(0.03f, 1.5f, 0.12f), new Vector3(-0.02f, 1.85f, 0.3f), new Vector3(0.05f, 2.02f, 0.45f), new Vector3(0.17f, 2.1f, 0.66f), new Vector3(0.2f, 2.32f, 0.62f), new Vector3(-0.3f, 1.97f, 0.26f), new Vector3(0.26f, 1.78f, 0.32f), new Vector3(-0.46f, 1.38f, 0.08f), new Vector3(-0.4f, 0.72f, 0.36f), new Vector3(0.47f, 1.3f, 0.48f), new Vector3(0.38f, 0.8f, 0.74f), new Vector3(-0.13f, 1.05f, 0), new Vector3(0.12f, 1.0f, 0.02f), new Vector3(-0.22f, 0.55f, 0.24f), new Vector3(-0.16f, 0.04f, -0.06f), new Vector3(0.24f, 0.58f, -0.2f), new Vector3(0.18f, 0.06f, 0.06f), new Vector3(-0.46f, 0.38f, 0.42f), new Vector3(-0.36f, 0.4f, 0.48f), new Vector3(-0.4f, 0.34f, 0.52f), new Vector3(0.44f, 0.45f, 0.84f), new Vector3(0.33f, 0.48f, 0.88f), new Vector3(0.38f, 0.42f, 0.92f), new Vector3(-0.2f, 0.02f, 0.18f), new Vector3(0.22f, 0.02f, 0.32f), new Vector3(0.12f, 1.98f, 0.7f) };
+    static readonly (int a, int b, float r)[] Bones = { (0, 1, 0.03f), (1, 2, 0.03f), (2, 3, 0.025f), (3, 4, 0.02f), (4, 5, 0.018f), (5, 3, 0.015f), (4, 26, 0.015f), (26, 3, 0.015f), (2, 6, 0.022f), (2, 7, 0.022f), (6, 7, 0.012f), (6, 1, 0.012f), (7, 1, 0.012f), (6, 8, 0.02f), (8, 9, 0.018f), (7, 10, 0.02f), (10, 11, 0.018f), (9, 18, 0.01f), (9, 19, 0.01f), (9, 20, 0.01f), (11, 21, 0.01f), (11, 22, 0.01f), (11, 23, 0.01f), (0, 12, 0.022f), (0, 13, 0.022f), (12, 13, 0.012f), (12, 14, 0.024f), (14, 15, 0.022f), (15, 24, 0.015f), (13, 16, 0.024f), (16, 17, 0.022f), (17, 25, 0.015f) };
+    readonly System.Collections.Generic.List<Vector3> bv = new(), bn = new();
+    readonly System.Collections.Generic.List<Vector2> buv = new();
+    readonly System.Collections.Generic.List<int> bt = new();
+
+    // Rebuilt every frame in its pose: the head jerks now and then, the hands sway.
+    void Pose(Mesh mesh, float t)
     {
-        Vector3[][] boxes = {
-            new[] { new Vector3(-0.12f, 0.55f, 0), new Vector3(0.06f, 0.55f, 0.07f) }, new[] { new Vector3(0.12f, 0.55f, 0), new Vector3(0.06f, 0.55f, 0.07f) },
-            new[] { new Vector3(0, 1.45f, 0), new Vector3(0.2f, 0.38f, 0.1f) },
-            new[] { new Vector3(-0.27f, 1.25f, 0.05f), new Vector3(0.04f, 0.55f, 0.05f) }, new[] { new Vector3(0.27f, 1.25f, 0.05f), new Vector3(0.04f, 0.55f, 0.05f) },
-            new[] { new Vector3(0, 2.0f, 0.02f), new Vector3(0.1f, 0.14f, 0.11f) } };
-        var v = new System.Collections.Generic.List<Vector3>(); var n = new System.Collections.Generic.List<Vector3>();
-        var uv = new System.Collections.Generic.List<Vector2>(); var t = new System.Collections.Generic.List<int>();
-        foreach (var b in boxes)
-            for (int f = 0; f < 6; f++)
+        var j = (Vector3[])Joints.Clone();
+        float jerk = Mathf.Sin(Mathf.Floor(t * 3) * 78.233f) > 0.6f ? Mathf.Sin(Mathf.Floor(t * 3) * 12.9898f) * 0.08f : 0;
+        foreach (int k in new[] { 4, 5, 26 }) j[k] += new Vector3(jerk, -Mathf.Abs(jerk) * 0.5f, 0);
+        foreach (int k in new[] { 9, 18, 19, 20 }) j[k].z += Mathf.Sin(t * 1.3f) * 0.06f;
+        foreach (int k in new[] { 11, 21, 22, 23 }) j[k].z += Mathf.Sin(t * 1.1f + 2) * 0.06f;
+        bv.Clear(); bn.Clear(); buv.Clear(); bt.Clear();
+        foreach (var (ja, jb, r) in Bones)
+        {
+            Vector3 A = j[ja], B = j[jb], d = (B - A).normalized;
+            Vector3 p = Vector3.Cross(d, Mathf.Abs(d.y) > 0.9f ? Vector3.right : Vector3.up).normalized, q = Vector3.Cross(d, p);
+            float w = r * 0.6f;
+            foreach (float sg in new[] { 1f, -1f }) // two strands, swapping sides along the bone
             {
-                int ax = f >> 1, u = (ax + 1) % 3, w = (ax + 2) % 3; float sg = (f & 1) == 1 ? 1 : -1;
-                var nn = Vector3.zero; nn[ax] = sg;
-                int i0 = v.Count;
-                foreach (var (a, c) in new[] { (-1f, -1f), (1f, -1f), (1f, 1f), (-1f, 1f) })
+                Vector3 a = A + p * r * 0.7f * sg, b = B - p * r * 0.7f * sg;
+                foreach (var (u, v) in new[] { (p, q), (q, -p), (-p, -q), (-q, p) }) // 4 sides of a thin square rod
                 {
-                    var p = b[0]; p[ax] += sg * b[1][ax]; p[u] += a * b[1][u]; p[w] += c * b[1][w];
-                    v.Add(p); n.Add(nn); uv.Add(new Vector2(256 + Props.Dark, 0));
+                    int i0 = bv.Count;
+                    bv.Add(a + (u - v) * w); bv.Add(a + (u + v) * w); bv.Add(b + (u + v) * w); bv.Add(b + (u - v) * w);
+                    for (int k = 0; k < 4; k++) { bn.Add(u); buv.Add(new Vector2(256 + Props.Black, 0)); }
+                    // both windings, so every side shows whichever way the rod was laid out
+                    bt.AddRange(new[] { i0, i0 + 1, i0 + 2, i0, i0 + 2, i0 + 3, i0, i0 + 2, i0 + 1, i0, i0 + 3, i0 + 2 });
                 }
-                // both windings, so every face shows whichever way the box was laid out
-                t.AddRange(new[] { i0, i0 + 1, i0 + 2, i0, i0 + 2, i0 + 3, i0, i0 + 2, i0 + 1, i0, i0 + 3, i0 + 2 });
             }
-        var mesh = new Mesh { name = "Entity" };
-        mesh.SetVertices(v); mesh.SetNormals(n); mesh.SetUVs(0, uv); mesh.SetTriangles(t, 0); mesh.RecalculateBounds();
-        return mesh;
+        }
+        mesh.Clear(); mesh.SetVertices(bv); mesh.SetNormals(bn); mesh.SetUVs(0, buv); mesh.SetTriangles(bt, 0); mesh.RecalculateBounds();
     }
 
     // Two detuned saws, low-passed: the drone.

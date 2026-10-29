@@ -64,13 +64,13 @@ public class VhsCamera : MonoBehaviour
     // Camcorder overlay: PLAY in the corner, time and date bottom-left (year pinned to 1996 for the found-footage feel).
     void OnGUI()
     {
-        if (!BackroomsGame.Started) // start screen: title, then NORMAL or PEACEFUL (no entity)
+        if (!BackroomsGame.Started) // start screen: title, then NORMAL or EASY (no entity)
         {
             lookStyle ??= new GUIStyle(GUI.skin.label) { fontSize = Screen.height / 10, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, normal = { textColor = new Color(1f, 1f, 0.92f, 0.95f) } };
             GUI.Label(new Rect(0, Screen.height * 0.2f, Screen.width, Screen.height * 0.2f), "ENDLESS BACKROOMS", lookStyle);
             float w = Screen.height * 0.4f, h = Screen.height * 0.12f, y = Screen.height * 0.55f;
             if (GUI.Button(new Rect(Screen.width / 2f - w - 10, y, w, h), "NORMAL")) BackroomsGame.Begin(false);
-            if (GUI.Button(new Rect(Screen.width / 2f + 10, y, w, h), "PEACEFUL")) BackroomsGame.Begin(true);
+            if (GUI.Button(new Rect(Screen.width / 2f + 10, y, w, h), "EASY")) BackroomsGame.Begin(true);
             return;
         }
         // LOOK button bottom-right cycles the shader presets; the new name pops up mid-screen for a moment.
@@ -110,7 +110,7 @@ public class VhsCamera : MonoBehaviour
         if (Shader.GetGlobalFloat("_Debug") > 0) // set by BackroomsGame.debugMode; sits above the stamp
         {
             debugStyle ??= new GUIStyle(style) { normal = { textColor = new Color(0.3f, 1f, 0.35f, 0.95f) } };
-            GUI.Label(new Rect(m, Screen.height - m - style.fontSize * 3.9f, Screen.width, style.fontSize * 1.5f), "(DEBUG MODE)", debugStyle);
+            GUI.Label(new Rect(m, Screen.height - m - style.fontSize * 3.9f, Screen.width, style.fontSize * 1.5f), "(DEBUG MODE) EXPLORED " + Mathf.FloorToInt(Entity.Explored * 100) + "%", debugStyle); // slam at 30, entity at 35
         }
     }
 

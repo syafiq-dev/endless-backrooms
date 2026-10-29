@@ -72,7 +72,7 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 <div id="start">
   <div class="card">
     <h1>ENDLESS BACKROOMS</h1>
-    <div class="modes"><button id="go" type="button">NORMAL</button><button id="peace" type="button">PEACEFUL</button></div>
+    <div class="modes"><button id="go" type="button">NORMAL</button><button id="easy" type="button">EASY</button></div>
     <p id="how" style="font-size:18px;opacity:.75"></p>
   </div>
 </div>
@@ -80,7 +80,7 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 <script id="fs1" type="x-shader">#version 300 es
 precision highp float;
 uniform float _CellSize, _WallHeight, _FogDensity, _T, _Debug, _Seed, _NV;
-uniform vec4 _FogColor, _ExitPos; uniform vec3 _Cam; uniform vec2 _Screen;
+uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 #define _WorldSpaceCameraPos _Cam
@@ -259,7 +259,8 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                            : pm < 3.5 ? vec3(0.90, 0.90, 0.88)  // white
                            : pm < 4.5 ? vec3(0.12, 0.12, 0.12)  // dark trim
                            : pm < 5.5 ? vec3(0.36, 0.33, 0.20)  // worn olive sofa fabric
-                           : vec3(0.62, 0.42, 0.40);            // faded rose armchair fabric
+                           : pm < 6.5 ? vec3(0.62, 0.42, 0.40)  // faded rose armchair fabric
+                           : vec3(0.004, 0.004, 0.004);         // the entity's black wire
                     ao = 1.0;
                 }
                 else if (n.y > 0.5)
@@ -329,7 +330,12 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                     col = mix(col, vec3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16.0)));
                 }
                 // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
-                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam));
+                // The entity's black aura: darkens whatever you see through the air around it (closest point of the view ray to its chest).
+                vec3 rd = wpos - _WorldSpaceCameraPos;
+                vec3 ea = _WorldSpaceCameraPos + rd * clamp(dot(_EntPos.xyz - _WorldSpaceCameraPos, rd) / dot(rd, rd), 0., 1.) - _EntPos.xyz;
+                ea.y *= 0.55; // taller than it is wide
+                float aura = _EntPos.w * exp(-dot(ea, ea) * 1.6) * (0.7 + 0.3 * vnoise(wpos.xz * 4.0 + wpos.y * 3.0 + t * 3.0)); // smoky edge
+                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam)) * (1.0 - 0.95 * aura);
             }
 
 
@@ -342,7 +348,7 @@ void main() {
 <script id="fs2" type="x-shader">#version 300 es
 precision highp float;
 uniform float _CellSize, _WallHeight, _FogDensity, _T, _Debug, _Seed, _NV;
-uniform vec4 _FogColor, _ExitPos; uniform vec3 _Cam; uniform vec2 _Screen;
+uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 #define _WorldSpaceCameraPos _Cam
@@ -521,7 +527,8 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                            : pm < 3.5 ? vec3(0.90, 0.90, 0.88)  // white
                            : pm < 4.5 ? vec3(0.12, 0.12, 0.12)  // dark trim
                            : pm < 5.5 ? vec3(0.36, 0.33, 0.20)  // worn olive sofa fabric
-                           : vec3(0.62, 0.42, 0.40);            // faded rose armchair fabric
+                           : pm < 6.5 ? vec3(0.62, 0.42, 0.40)  // faded rose armchair fabric
+                           : vec3(0.004, 0.004, 0.004);         // the entity's black wire
                     ao = 1.0;
                 }
                 else if (n.y > 0.5)
@@ -591,7 +598,12 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                     col = mix(col, vec3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16.0)));
                 }
                 // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
-                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam));
+                // The entity's black aura: darkens whatever you see through the air around it (closest point of the view ray to its chest).
+                vec3 rd = wpos - _WorldSpaceCameraPos;
+                vec3 ea = _WorldSpaceCameraPos + rd * clamp(dot(_EntPos.xyz - _WorldSpaceCameraPos, rd) / dot(rd, rd), 0., 1.) - _EntPos.xyz;
+                ea.y *= 0.55; // taller than it is wide
+                float aura = _EntPos.w * exp(-dot(ea, ea) * 1.6) * (0.7 + 0.3 * vnoise(wpos.xz * 4.0 + wpos.y * 3.0 + t * 3.0)); // smoky edge
+                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam)) * (1.0 - 0.95 * aura);
             }
 
 
@@ -604,7 +616,7 @@ void main() {
 <script id="fs3" type="x-shader">#version 300 es
 precision highp float;
 uniform float _CellSize, _WallHeight, _FogDensity, _T, _Debug, _Seed, _NV;
-uniform vec4 _FogColor, _ExitPos; uniform vec3 _Cam; uniform vec2 _Screen;
+uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 #define _WorldSpaceCameraPos _Cam
@@ -783,7 +795,8 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                            : pm < 3.5 ? vec3(0.90, 0.90, 0.88)  // white
                            : pm < 4.5 ? vec3(0.12, 0.12, 0.12)  // dark trim
                            : pm < 5.5 ? vec3(0.36, 0.33, 0.20)  // worn olive sofa fabric
-                           : vec3(0.62, 0.42, 0.40);            // faded rose armchair fabric
+                           : pm < 6.5 ? vec3(0.62, 0.42, 0.40)  // faded rose armchair fabric
+                           : vec3(0.004, 0.004, 0.004);         // the entity's black wire
                     ao = 1.0;
                 }
                 else if (n.y > 0.5)
@@ -855,7 +868,12 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                     col = mix(col, vec3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16.0)));
                 }
                 // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
-                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam));
+                // The entity's black aura: darkens whatever you see through the air around it (closest point of the view ray to its chest).
+                vec3 rd = wpos - _WorldSpaceCameraPos;
+                vec3 ea = _WorldSpaceCameraPos + rd * clamp(dot(_EntPos.xyz - _WorldSpaceCameraPos, rd) / dot(rd, rd), 0., 1.) - _EntPos.xyz;
+                ea.y *= 0.55; // taller than it is wide
+                float aura = _EntPos.w * exp(-dot(ea, ea) * 1.6) * (0.7 + 0.3 * vnoise(wpos.xz * 4.0 + wpos.y * 3.0 + t * 3.0)); // smoky edge
+                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam)) * (1.0 - 0.95 * aura);
             }
 
 
@@ -868,7 +886,7 @@ void main() {
 <script id="fs4" type="x-shader">#version 300 es
 precision highp float;
 uniform float _CellSize, _WallHeight, _FogDensity, _T, _Debug, _Seed, _NV;
-uniform vec4 _FogColor, _ExitPos; uniform vec3 _Cam; uniform vec2 _Screen;
+uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 #define _WorldSpaceCameraPos _Cam
@@ -1047,7 +1065,8 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                            : pm < 3.5 ? vec3(0.90, 0.90, 0.88)  // white
                            : pm < 4.5 ? vec3(0.12, 0.12, 0.12)  // dark trim
                            : pm < 5.5 ? vec3(0.36, 0.33, 0.20)  // worn olive sofa fabric
-                           : vec3(0.62, 0.42, 0.40);            // faded rose armchair fabric
+                           : pm < 6.5 ? vec3(0.62, 0.42, 0.40)  // faded rose armchair fabric
+                           : vec3(0.004, 0.004, 0.004);         // the entity's black wire
                     ao = 1.0;
                 }
                 else if (n.y > 0.5)
@@ -1117,7 +1136,12 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                     col = mix(col, vec3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16.0)));
                 }
                 // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
-                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam));
+                // The entity's black aura: darkens whatever you see through the air around it (closest point of the view ray to its chest).
+                vec3 rd = wpos - _WorldSpaceCameraPos;
+                vec3 ea = _WorldSpaceCameraPos + rd * clamp(dot(_EntPos.xyz - _WorldSpaceCameraPos, rd) / dot(rd, rd), 0., 1.) - _EntPos.xyz;
+                ea.y *= 0.55; // taller than it is wide
+                float aura = _EntPos.w * exp(-dot(ea, ea) * 1.6) * (0.7 + 0.3 * vnoise(wpos.xz * 4.0 + wpos.y * 3.0 + t * 3.0)); // smoky edge
+                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam)) * (1.0 - 0.95 * aura);
             }
 
 
@@ -1130,7 +1154,7 @@ void main() {
 <script id="fs5" type="x-shader">#version 300 es
 precision highp float;
 uniform float _CellSize, _WallHeight, _FogDensity, _T, _Debug, _Seed, _NV;
-uniform vec4 _FogColor, _ExitPos; uniform vec3 _Cam; uniform vec2 _Screen;
+uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 #define _WorldSpaceCameraPos _Cam
@@ -1309,7 +1333,8 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                            : pm < 3.5 ? vec3(0.90, 0.90, 0.88)  // white
                            : pm < 4.5 ? vec3(0.12, 0.12, 0.12)  // dark trim
                            : pm < 5.5 ? vec3(0.36, 0.33, 0.20)  // worn olive sofa fabric
-                           : vec3(0.62, 0.42, 0.40);            // faded rose armchair fabric
+                           : pm < 6.5 ? vec3(0.62, 0.42, 0.40)  // faded rose armchair fabric
+                           : vec3(0.004, 0.004, 0.004);         // the entity's black wire
                     ao = 1.0;
                 }
                 else if (n.y > 0.5)
@@ -1380,7 +1405,12 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                     col = mix(col, vec3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16.0)));
                 }
                 // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
-                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam));
+                // The entity's black aura: darkens whatever you see through the air around it (closest point of the view ray to its chest).
+                vec3 rd = wpos - _WorldSpaceCameraPos;
+                vec3 ea = _WorldSpaceCameraPos + rd * clamp(dot(_EntPos.xyz - _WorldSpaceCameraPos, rd) / dot(rd, rd), 0., 1.) - _EntPos.xyz;
+                ea.y *= 0.55; // taller than it is wide
+                float aura = _EntPos.w * exp(-dot(ea, ea) * 1.6) * (0.7 + 0.3 * vnoise(wpos.xz * 4.0 + wpos.y * 3.0 + t * 3.0)); // smoky edge
+                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam)) * (1.0 - 0.95 * aura);
             }
 
 
@@ -1729,7 +1759,7 @@ const SIZE = 24, GROW = 0, MAX_SIZE = 32; // 24x24 rooms (~20 min runs); GROW > 
 let W = SIZE, D = SIZE;
 const S = 6, H = 3.4, LOOP = 0.3, FOG = [0.50, 0.48, 0.20], R = 0.25;
 const WALL_HALF = 0.2, TRIM = 0.02, TRIM_H = 0.1;
-const DEBUG = false;
+const DEBUG = true;
 const ENTITY = true; // hidden switch: false = no entity (Entity.cs: BackroomsGame.entityOn) // debug/dev mode: (DEBUG MODE) on the stamp + room variant numbers on the floors
 // Room interiors from RoomVariants.cs: [centre x, centre z, half x, half z] around the cell centre, for 4 m cells.
 const VARIANTS = [
@@ -1865,6 +1895,7 @@ function generate() {
 }
 
 const sub = (a, b) => a.map((x, i) => x - b[i]), cross = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]], dot = (a, b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const norm = a => { const l = Math.hypot(...a) || 1; return a.map(x => x / l); };
 function buildMesh({ m, exit, key, long, arch, funnel }) {
   const propChance = 1 / (PROP_ODDS[0] + Math.random() * (PROP_ODDS[1] - PROP_ODDS[0])); // new odds every run
   const V = [], I = [], solids = m.map(r => r.map(() => [])); let o = 0;
@@ -2011,7 +2042,7 @@ const touch = matchMedia('(pointer: coarse)').matches;
 how.textContent = touch ? 'Drag left side to walk, tap RUN to run. Drag right side to look.' : 'WASD to walk, Shift to run, mouse to look. Esc frees the mouse.';
 document.getElementById('act').textContent = touch ? 'SEARCH' : 'E: SEARCH';
 hint.textContent = touch ? 'LEFT: WALK  RIGHT: LOOK' : 'WASD + MOUSE / L: LOOK / N: NIGHT';
-if (!g) { how.textContent = 'This browser has no WebGL 2, so the game cannot run here. Try Chrome, Safari 15+ or Firefox.'; document.getElementById('go').hidden = document.getElementById('peace').hidden = true; }
+if (!g) { how.textContent = 'This browser has no WebGL 2, so the game cannot run here. Try Chrome, Safari 15+ or Firefox.'; document.getElementById('go').hidden = document.getElementById('easy').hidden = true; }
 
 function compile(type, id) { const s = g.createShader(type); g.shaderSource(s, document.getElementById(id).text); g.compileShader(s); if (!g.getShaderParameter(s, g.COMPILE_STATUS)) throw new Error(g.getShaderInfoLog(s)); return s; }
 function program(vs, fs) { const p = g.createProgram(); g.attachShader(p, compile(g.VERTEX_SHADER, vs)); g.attachShader(p, compile(g.FRAGMENT_SHADER, fs)); ['P', 'N', 'M'].forEach((n, i) => g.bindAttribLocation(p, i, n)); g.linkProgram(p); if (!g.getProgramParameter(p, g.LINK_STATUS)) throw new Error(g.getProgramInfoLog(p)); return p; }
@@ -2167,23 +2198,40 @@ document.getElementById('mute').addEventListener('click', e => {
   muted = !muted; if (gain) gain.gain.value = muted ? 0 : 1; e.currentTarget.textContent = muted ? 'SOUND OFF' : 'SOUND ON';
 });
 
-let playing = false, peaceful = false; // PEACEFUL: no entity, just exploring
+let playing = false, easy = false; // EASY: no entity, just exploring
 const begin = calm => {
-  peaceful = calm;
+  easy = calm;
   document.getElementById("start").hidden = true; document.getElementById("nv").hidden = false; document.getElementById("runb").hidden = !touch; playing = true; startAudio(); showLook(lookIdx);
   if (!touch) canvas.requestPointerLock?.()?.catch?.(() => {});
   setTimeout(() => hint.classList.add('gone'), 6000);
 };
 document.getElementById('go').addEventListener('click', () => begin(false));
-document.getElementById('peace').addEventListener('click', () => begin(true));
+document.getElementById('easy').addEventListener('click', () => begin(true));
 
 // The entity (Entity.cs does the same). A slam somewhere out of sight once you've explored 30% of the rooms; at 35% it
 // appears a few rooms behind you and follows the maze toward you, lit or dark, a bit faster than walking but slower
 // than running. Get ENT_LOSE rooms ahead and it loses you and fades (and comes back after a while). If it reaches you, the tape ends.
 const ENT_SLAM = 0.30, ENT_WAKE = 0.35, ENT_SPEED = 3.4, ENT_REACH = 0.9, ENT_COOLDOWN = 25, ENT_LOSE = 6;
-// boxes [x, y, z, hx, hy, hz]: tall and thin, long arms, small head; local +z faces you
-const ENT_BODY = [[-0.12, 0.55, 0, 0.06, 0.55, 0.07], [0.12, 0.55, 0, 0.06, 0.55, 0.07], [0, 1.45, 0, 0.2, 0.38, 0.1],
-  [-0.27, 1.25, 0.05, 0.04, 0.55, 0.05], [0.27, 1.25, 0.05, 0.04, 0.55, 0.05], [0, 2.0, 0.02, 0.1, 0.14, 0.11]];
+// A stick man of black wire, crooked and alien: hunched, head jutting and tilted, one shoulder low, arms hanging past the
+// knees, the right knee bent the wrong way. Joints [x, y, z] in metres, local +z faces you; bones [joint, joint, radius],
+// each drawn as two strands twisted round each other. Same numbers in Entity.cs.
+const ENT_J = [[0, 1.05, 0], [0.03, 1.5, 0.12], [-0.02, 1.85, 0.3], [0.05, 2.02, 0.45], [0.17, 2.1, 0.66], [0.2, 2.32, 0.62], // pelvis, spine, chest, neck, face, crown
+  [-0.3, 1.97, 0.26], [0.26, 1.78, 0.32], [-0.46, 1.38, 0.08], [-0.4, 0.72, 0.36], [0.47, 1.3, 0.48], [0.38, 0.8, 0.74], // shoulders, left elbow+wrist, right elbow+wrist
+  [-0.13, 1.05, 0], [0.12, 1.0, 0.02], [-0.22, 0.55, 0.24], [-0.16, 0.04, -0.06], [0.24, 0.58, -0.2], [0.18, 0.06, 0.06], // hips, left knee+ankle, right knee+ankle
+  [-0.46, 0.38, 0.42], [-0.36, 0.4, 0.48], [-0.4, 0.34, 0.52], [0.44, 0.45, 0.84], [0.33, 0.48, 0.88], [0.38, 0.42, 0.92], // long fingers
+  [-0.2, 0.02, 0.18], [0.22, 0.02, 0.32], [0.12, 1.98, 0.7]]; // toes, jaw
+const ENT_BONES = [[0, 1, .03], [1, 2, .03], [2, 3, .025], [3, 4, .02], [4, 5, .018], [5, 3, .015], [4, 26, .015], [26, 3, .015],
+  [2, 6, .022], [2, 7, .022], [6, 7, .012], [6, 1, .012], [7, 1, .012], [6, 8, .02], [8, 9, .018], [7, 10, .02], [10, 11, .018],
+  [9, 18, .01], [9, 19, .01], [9, 20, .01], [11, 21, .01], [11, 22, .01], [11, 23, .01],
+  [0, 12, .022], [0, 13, .022], [12, 13, .012], [12, 14, .024], [14, 15, .022], [15, 24, .015], [13, 16, .024], [16, 17, .022], [17, 25, .015]];
+// Its pose this frame: the head jerks now and then, the hands sway.
+function entPose(t) {
+  const j = ENT_J.map(p => p.slice()), jerk = Math.sin(Math.floor(t * 3) * 78.233) > 0.6 ? Math.sin(Math.floor(t * 3) * 12.9898) * 0.08 : 0;
+  for (const k of [4, 5, 26]) { j[k][0] += jerk; j[k][1] -= Math.abs(jerk) * 0.5; }
+  for (const k of [9, 18, 19, 20]) j[k][2] += Math.sin(t * 1.3) * 0.06;
+  for (const k of [11, 21, 22, 23]) j[k][2] += Math.sin(t * 1.1 + 2) * 0.06;
+  return j;
+}
 const ent = { on: false, x: 0, z: 0, yaw: 0, fade: 0, cool: 0, seen: null, count: 0, slammed: false, vao: null, buf: null }; // seen = rooms you've been in
 function cellSteps(fx, fz) { // walking distance in rooms from (fx, fz) to every room
   const d = maze.m.map(r => r.map(() => -1)), q = [[fx, fz]]; d[fx][fz] = 0;
@@ -2191,10 +2239,11 @@ function cellSteps(fx, fz) { // walking distance in rooms from (fx, fz) to every
   return d;
 }
 function entityStep(dt) {
-  if (!ENTITY || peaceful || fading) return;
+  if (fading) return;
   const pc = [Math.floor(me.x / S), Math.floor(me.z / S)];
   if (!ent.seen[pc[0]][pc[1]]) { ent.seen[pc[0]][pc[1]] = true; ent.count++; }
   const explored = ent.count / (W * D);
+  if (!ENTITY || easy) return; // still counted, for the debug readout
   if (explored >= ENT_SLAM && !ent.slammed) { ent.slammed = true; slam(); }
   ent.cool -= dt;
   if (!ent.on) {
@@ -2232,16 +2281,18 @@ function caught() { // the tape cuts out and a new one starts
 }
 function drawEntity() {
   if (!ent.on) return;
-  const V = [], I = [], c = Math.cos(ent.yaw), sn = Math.sin(ent.yaw), sink = ent.fade * 0.6; // fades by sinking into the dark
-  for (const [px, py, pz, hx, hy, hz] of ENT_BODY) for (let f = 0; f < 6; f++) {
-    const ax = f >> 1, sg = f & 1 ? 1 : -1, n = [0, 0, 0]; n[ax] = sg;
-    const u = (ax + 1) % 3, v = (ax + 2) % 3, h = [hx, hy, hz], base = V.length / 7;
-    for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
-      const lp = [px, py, pz]; lp[ax] += sg * h[ax]; lp[u] += a * h[u]; lp[v] += b * h[v];
-      const wx = ent.x + lp[0] * c + lp[2] * sn, wz = ent.z - lp[0] * sn + lp[2] * c;
-      V.push(wx, lp[1] - sink, wz, n[0] * c + n[2] * sn, n[1], -n[0] * sn + n[2] * c, 260); // 256 + 4: dark prop colour
+  const V = [], I = [], c = Math.cos(ent.yaw), sn = Math.sin(ent.yaw), sink = ent.fade * 0.6, J = entPose((performance.now() - t0) / 1000); // fades by sinking into the dark
+  const put = (p, n) => V.push(ent.x + p[0] * c + p[2] * sn, p[1] - sink, ent.z - p[0] * sn + p[2] * c, n[0] * c + n[2] * sn, n[1], -n[0] * sn + n[2] * c, 263); // 256 + 7: black wire
+  for (const [ja, jb, r] of ENT_BONES) {
+    const A = J[ja], B = J[jb], d = norm(sub(B, A)), p = norm(Math.abs(d[1]) > 0.9 ? cross(d, [1, 0, 0]) : cross(d, [0, 1, 0])), q = cross(d, p), w = r * 0.6;
+    for (const s of [1, -1]) { // two strands, swapping sides along the bone
+      const a = A.map((v, i) => v + p[i] * r * 0.7 * s), b = B.map((v, i) => v - p[i] * r * 0.7 * s);
+      for (const [u, v] of [[p, q], [q, p.map(x => -x)], [p.map(x => -x), q.map(x => -x)], [q.map(x => -x), p]]) { // 4 sides of a thin square rod
+        const base = V.length / 7, e = (o, k) => o.map((x, i) => x + u[i] * w + v[i] * w * k);
+        put(e(a, -1), u); put(e(a, 1), u); put(e(b, 1), u); put(e(b, -1), u);
+        I.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      }
     }
-    I.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
   if (!ent.vao) {
     ent.vao = g.createVertexArray(); g.bindVertexArray(ent.vao); ent.buf = g.createBuffer(); g.bindBuffer(g.ARRAY_BUFFER, ent.buf);
@@ -2318,6 +2369,7 @@ function stamp() { // real time and date, year pinned to 1996 for the found-foot
   const d = new Date(), h = d.getHours();
   clock.textContent = (h < 12 ? 'AM ' : 'PM ') + ((h % 12) || 12) + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0');
   document.getElementById('date').textContent = MONTHS[d.getMonth()] + ' ' + String(d.getDate()).padStart(2, '0') + ' 1996';
+  if (DEBUG) document.getElementById('debug').textContent = '(DEBUG MODE) EXPLORED ' + Math.floor(ent.count / (W * D) * 100) + '%'; // slam at 30, entity at 35
 }
 stamp();
 document.getElementById('debug').hidden = document.getElementById('debugbr').hidden = !DEBUG;
@@ -2368,6 +2420,7 @@ function frame(now) {
   g.useProgram(prog); g.bindFramebuffer(g.FRAMEBUFFER, tape.fb); g.viewport(0, 0, tape.w, tape.h); g.enable(g.DEPTH_TEST); g.enable(g.CULL_FACE);
   g.uniformMatrix4fv(U('VP'), false, viewProj(cam, camYaw, camPitch, canvas.width / canvas.height, camRoll));
   g.uniform3f(U('_Cam'), ...cam); g.uniform1f(U('_T'), (now - t0) / 1000); g.uniform1f(U('_NV'), nv ? 1 : 0);
+  g.uniform4f(U('_EntPos'), ent.x, 1.5 - ent.fade * 0.6, ent.z, ent.on ? 1 - Math.min(1, ent.fade / 1.5) : 0); // its black aura
   g.clear(g.COLOR_BUFFER_BIT | g.DEPTH_BUFFER_BIT);
   g.bindVertexArray(level.vao); g.drawElements(g.TRIANGLES, level.n, g.UNSIGNED_INT, 0);
   drawEntity();

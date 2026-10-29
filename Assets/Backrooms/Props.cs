@@ -6,7 +6,7 @@ public static class Props
 {
     public const float MinOdds = 200, MaxOdds = 300;
     public const float BigChance = 0.25f; // share of random furniture that comes out slightly too big (x1.15-1.4) // each run rolls a chance between 1 in 200 and 1 in 300 rooms
-    public const int Wood = 0, Metal = 1, Red = 2, White = 3, Dark = 4, Olive = 5, Rose = 6; // colours, see the BackroomsSurface shaders in Resources/Presets
+    public const int Wood = 0, Metal = 1, Red = 2, White = 3, Dark = 4, Olive = 5, Rose = 6, Black = 7; // colours, see the BackroomsSurface shaders in Resources/Presets
     public const int Sign = 256; // the shader writes a glowing red EXIT on this face
 
     public struct Part
