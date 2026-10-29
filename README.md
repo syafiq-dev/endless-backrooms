@@ -30,9 +30,20 @@ A procedural backrooms maze you can walk around on your phone. Every run picks a
 
 If you get errors about `UnityEngine.InputSystem`, go to **Edit > Project Settings > Player > Active Input Handling** and set it to **Input System Package (New)** or **Both**.
 
+## Steam (Windows + Linux / Steam Deck)
+
+Controls on desktop: WASD walk, mouse look, Shift run, E act, N night vision, L look, Esc quit. Controller (Steam Deck): left stick walk, right stick look, click left stick to toggle run, A act (NORMAL on the start screen), X EASY on the start screen, Y night vision, RB look. The touch buttons are hidden in desktop builds.
+
+1. In Unity Hub add the **Windows Build Support (Mono)** and **Linux Build Support (Mono)** modules.
+2. **Backrooms > Build for Steam (Windows + Linux)** builds into `Builds/Steam/windows` and `Builds/Steam/linux`.
+3. Steam Deck test before Steam is set up: copy `Builds/Steam/linux` to the Deck, then in Desktop Mode right-click `EndlessBackrooms.x86_64` > **Add to Steam**, and play it from Game Mode.
+4. Upload: put your App ID and depot IDs in `steam/app_build.vdf`, then `steamcmd +login YOUR_STEAM_LOGIN +run_app_build "$PWD/steam/app_build.vdf" +quit`, and set the build live on the default branch in Steamworks (App Admin > SteamPipe > Builds).
+
+No Steamworks SDK yet: a paid game doesn't need it. Add Steamworks.NET later for achievements or cloud saves.
+
 ## Not built yet
 
-Ads, the remove-ads purchase, menus, and custom room prefabs per tile type. The tile masks in `Maze.cs` are the hook for swapping in hand-made room models later.
+Ads, the remove-ads purchase, a pause menu, and custom room prefabs per tile type. The tile masks in `Maze.cs` are the hook for swapping in hand-made room models later.
 
 ## Browser version
 

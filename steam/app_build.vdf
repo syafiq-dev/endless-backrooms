@@ -1,0 +1,23 @@
+// Uploads Builds/Steam/ to Steam. Replace 1000000 with your App ID, 1000001/1000002 with your depot IDs (Steamworks > App Admin > SteamPipe > Depots).
+// Run from the repo folder: steamcmd +login YOUR_STEAM_LOGIN +run_app_build "$PWD/steam/app_build.vdf" +quit
+"AppBuild"
+{
+	"AppID" "1000000"
+	"Desc" "Endless Backrooms"
+	"ContentRoot" "../Builds/Steam/"
+	"BuildOutput" "../Builds/SteamOutput/"
+	"SetLive" ""
+	"Depots"
+	{
+		"1000001" // Windows depot
+		{
+			"FileMapping" { "LocalPath" "windows/*" "DepotPath" "." "recursive" "1" }
+			"FileExclusion" "*_BurstDebugInformation_DoNotShip"
+		}
+		"1000002" // Linux depot (Steam Deck runs this one natively)
+		{
+			"FileMapping" { "LocalPath" "linux/*" "DepotPath" "." "recursive" "1" }
+			"FileExclusion" "*_BurstDebugInformation_DoNotShip"
+		}
+	}
+}

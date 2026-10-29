@@ -84,6 +84,7 @@ public class VhsCamera : MonoBehaviour
             }
             return;
         }
+#if !UNITY_STANDALONE // touch buttons; desktop and Steam Deck use keys or the controller instead
         // LOOK button bottom-right cycles the shader presets; the new name pops up mid-screen for a moment.
         float bw = Screen.height * 0.22f, bh = Screen.height * 0.08f;
         if (GUI.Button(new Rect(Screen.width - bw - Screen.height * 0.04f, Screen.height - bh - Screen.height * 0.04f, bw, bh), "LOOK"))
@@ -96,6 +97,7 @@ public class VhsCamera : MonoBehaviour
         float rw = Screen.height * 0.24f;
         if (GUI.Button(new Rect(Screen.width - rw - Screen.height * 0.04f, Screen.height - bh - rw - Screen.height * 0.08f, rw, rw), PlayerController.RunHeld ? "RUN ON" : "RUN"))
             PlayerController.RunHeld = !PlayerController.RunHeld;
+#endif
         // Key item prompt (also E on a keyboard) and the KEY marker once you have it.
         float sw = Screen.height * 0.32f, sh = Screen.height * 0.1f;
         bool hidden = PlayerController.Hidden >= 0;
