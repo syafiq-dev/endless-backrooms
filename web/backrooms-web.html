@@ -131,28 +131,27 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 return 1.0 - smoothstep(0.12, 0.2, k);
             }
 
-            vec3 shade(vec3 p, vec3 n, float mask, float t)
+            // Light state of a room: x = panel brightness (flicker, dead, low power, dark room), y = ambient, z = power (0.0 = bad zone).
+            vec3 roomLight(vec2 cell, float t)
             {
-                float s = _CellSize, H = _WallHeight, tile = s / 9.0; // 6.0 m cell -> 0.67 m ceiling tiles
-
-                // Which cell this pixel belongs to. Nudge along the normal so a wall picks the cell it faces.
-                vec2 cell = floor((p.xz + n.xz * 0.05) / s);
-                vec2 local = p.xz - cell * s; // 0..s inside the cell
                 float h = hash(cell * 7.13 + 1.7);
-
-                // Low-power zones: big patches of rooms where the lights run dim, warm and unsteady.
-                float power = smoothstep(0.2, 0.32, vnoise(cell * 0.35 + _Seed)); // ~1.0 room in 8.0 is in a bad zone
-
-                // Light state: steady almost everywhere (~3.0% dead, ~1.0% flickering); about half flicker inside bad-power zones.
+                float power = smoothstep(0.2, 0.32, vnoise(cell * 0.35 + _Seed)); // low-power zones: ~1.0 room in 8.0
+                // Steady almost everywhere (~3.0% dead, ~1.0% flickering); about half flicker inside bad-power zones.
                 float on = 0.97 + 0.03 * sin(t * 100.0 + h * 50.0);
                 if (h < 0.03) on = 0.35;
                 else if (h < mix(0.5, 0.01, power)) on = hash(vec2(floor(t * 14.0 + h * 97.0), h)) > 0.35 ? 1.0 : 0.45;
                 on *= mix(0.3, 1.0, power);
+                // Dark rooms: ~1.0 room in 20.0, in small clusters, with the power nearly gone (10.0% brightness).
+                float dark = mix(0.1, 1.0, smoothstep(0.14, 0.16, vnoise(cell * 0.5 + _Seed * 1.7 + 50.0)));
+                return vec3(on * dark, mix(0.8, 1.0, on) * mix(0.35, 1.0, power) * dark, power);
+            }
 
-                // Ceiling panels: one slot per 3.0 x 3.0 tiles (9.0 per cell), but each slot rolls its own fitting so the
-                // grid doesn't repeat: ~20.0% empty, ~40.0% long 1x2 troffers (all running one way within a room),
-                // the rest square, some nudged a tile over. Only this cell's panels light it, so nothing leaks through walls.
-                float direct = 0.0, pool = 0.0, glow = 1e3; // glow = distance to the nearest panel's edge
+            // Ceiling panels of one room: one slot per 3.0 x 3.0 tiles (9.0 per room), but each slot rolls its own fitting so the
+            // grid doesn't repeat: ~20.0% empty, ~40.0% long 1x2 troffers (all running one way within a room),
+            // the rest square, some nudged a tile over. w fades a neighbouring room's light in; on is that room's light state.
+            void panels(vec2 cell, vec3 p, vec3 n, float w, float on, inout float direct, inout float pool, inout float glow)
+            {
+                float s = _CellSize, H = _WallHeight, tile = s / 9.0;
                 for (float bx = 0.0; bx < 3.0; bx++)
                     for (float bz = 0.0; bz < 3.0; bz++)
                     {
@@ -171,13 +170,20 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                         float area = hs.x * hs.y / 0.1764; // a 1x2 throws twice the light
                         vec3 L = vec3(c.x, H - 0.02, c.y) - p;
                         float d = length(L);
-                        direct += area * (clamp(dot(n, L / d), 0., 1.) * 0.6 + 0.4) / (1.0 + 0.5 * d * d);
+                        direct += w * on * area * (clamp(dot(n, L / d), 0., 1.) * 0.6 + 0.4) / (1.0 + 0.5 * d * d);
                         vec2 dl = p.xz - c;
-                        pool += area * exp(-dot(dl, dl) * 0.5);
+                        pool += w * area * exp(-dot(dl, dl) * 0.5);
                         glow = min(glow, max(max(abs(dl.x) - hs.x * tile, abs(dl.y) - hs.y * tile), 0.0));
                     }
-                direct *= 0.37;
+            }
 
+            vec3 shade(vec3 p, vec3 n, float mask, float t)
+            {
+                float s = _CellSize, H = _WallHeight, tile = s / 9.0; // 6.0 m cell -> 0.67 m ceiling tiles
+
+                // Which cell this pixel belongs to. Nudge along the normal so a wall picks the cell it faces.
+                vec2 cell = floor((p.xz + n.xz * 0.05) / s);
+                vec2 local = p.xz - cell * s; // 0..s inside the cell
                 // Soft shadows where walls meet. Mask bits: 1.0 N(+z), 2.0 E(+x), 4.0 S, 8.0 W; set = open.
                 float m = mod(round(mask), 16.0); // low 4.0 bits: open sides; the rest: room variant
                 float openN = mod(m, 2.0), openE = mod(floor(m / 2.0), 2.0), openS = mod(floor(m / 4.0), 2.0), openW = floor(m / 8.0);
@@ -185,6 +191,24 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                          * sideAO(1.0 - openS, local.y, vec2(0.0, 1.0), n.xz)
                          * sideAO(1.0 - openE, s - local.x, vec2(-1.0, 0.0), n.xz)
                          * sideAO(1.0 - openW, local.x, vec2(1.0, 0.0), n.xz);
+
+                // Light blends across open sides so rooms don't meet in a hard line: near an open edge the room
+                // next door adds its panels and its light state, fading from half-and-half at the edge to nothing
+                // at this room's middle. Closed sides never blend, so light still doesn't leak through walls.
+                vec2 toX = vec2(local.x < s * 0.5 ? -1.0 : 1.0, 0.0), toZ = vec2(0.0, local.y < s * 0.5 ? -1.0 : 1.0);
+                float fz = (toZ.y < 0.0 ? openS : openN) * (abs(local.y - s * 0.5) / (s * 0.5));
+                float fx = (toX.x < 0.0 ? openW : openE) * (abs(local.x - s * 0.5) / (s * 0.5)); // 1.0 at the edge, 0.0 mid-room
+                vec3 lit = roomLight(cell, t), litX = roomLight(cell + toX, t), litZ = roomLight(cell + toZ, t);
+                float wx = fx * 0.5, wz = fz * 0.5; // the shared state is half-and-half right at the edge
+                float on = lit.x; // this room's panels, for the glow of its own fittings
+                float amb = lit.y * (1.0 - wx - wz) + litX.y * wx + litZ.y * wz;
+                float power = lit.z * (1.0 - wx - wz) + litX.z * wx + litZ.z * wz;
+
+                float direct = 0.0, pool = 0.0, glow = 1e3; // glow = distance to the nearest panel's edge
+                panels(cell, p, n, 1.0, lit.x, direct, pool, glow);
+                if (fx > 0.0) panels(cell + toX, p, n, fx, litX.x, direct, pool, glow);
+                if (fz > 0.0) panels(cell + toZ, p, n, fz, litZ.x, direct, pool, glow);
+                direct *= 0.37;
 
                 vec3 albedo;
                 float emissive = 0.0;
@@ -254,9 +278,7 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 }
 
                 vec3 lightCol = mix(vec3(1.0, 0.75, 0.45), vec3(1.0, 0.94, 0.70), power); // low power runs warm
-                vec3 col = albedo * lightCol * (0.45 * mix(0.8, 1.0, on) * mix(0.35, 1.0, power) + direct * on * 1.6) * ao + lightCol * emissive * on;
-                // Dark rooms: ~1.0 room in 20.0, in small clusters, with the power nearly gone (10.0% brightness).
-                col *= mix(0.1, 1.0, smoothstep(0.14, 0.16, vnoise(cell * 0.5 + _Seed * 1.7 + 50.0)));
+                vec3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
                 col = 1.0 - exp(-col * 1.5); // soft shoulder: washed-out highlights instead of hard clipping
                 col = pow(max(col, 0.0), vec3(0.95, 0.95, 1.35)); // camcorder grade: pull blue out, everything leans yellow-green
                 col = mix(col, vec3(1.0, 0.12, 0.08), letters); // on emergency power: ignores flicker and low power
@@ -341,28 +363,27 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 return 1.0 - smoothstep(0.12, 0.2, k);
             }
 
-            vec3 shade(vec3 p, vec3 n, float mask, float t)
+            // Light state of a room: x = panel brightness (flicker, dead, low power, dark room), y = ambient, z = power (0.0 = bad zone).
+            vec3 roomLight(vec2 cell, float t)
             {
-                float s = _CellSize, H = _WallHeight, tile = s / 9.0; // 6.0 m cell -> 0.67 m ceiling tiles
-
-                // Which cell this pixel belongs to. Nudge along the normal so a wall picks the cell it faces.
-                vec2 cell = floor((p.xz + n.xz * 0.05) / s);
-                vec2 local = p.xz - cell * s; // 0..s inside the cell
                 float h = hash(cell * 7.13 + 1.7);
-
-                // Low-power zones: big patches of rooms where the lights run dim, warm and unsteady.
-                float power = smoothstep(0.2, 0.32, vnoise(cell * 0.35 + _Seed)); // ~1.0 room in 8.0 is in a bad zone
-
-                // Light state: steady almost everywhere (~3.0% dead, ~1.0% flickering); about half flicker inside bad-power zones.
+                float power = smoothstep(0.2, 0.32, vnoise(cell * 0.35 + _Seed)); // low-power zones: ~1.0 room in 8.0
+                // Steady almost everywhere (~3.0% dead, ~1.0% flickering); about half flicker inside bad-power zones.
                 float on = 0.97 + 0.03 * sin(t * 100.0 + h * 50.0);
                 if (h < 0.03) on = 0.35;
                 else if (h < mix(0.5, 0.01, power)) on = hash(vec2(floor(t * 14.0 + h * 97.0), h)) > 0.35 ? 1.0 : 0.45;
                 on *= mix(0.3, 1.0, power);
+                // Dark rooms: ~1.0 room in 20.0, in small clusters, with the power nearly gone (10.0% brightness).
+                float dark = mix(0.1, 1.0, smoothstep(0.14, 0.16, vnoise(cell * 0.5 + _Seed * 1.7 + 50.0)));
+                return vec3(on * dark, mix(0.8, 1.0, on) * mix(0.35, 1.0, power) * dark, power);
+            }
 
-                // Ceiling panels: one slot per 3.0 x 3.0 tiles (9.0 per cell), but each slot rolls its own fitting so the
-                // grid doesn't repeat: ~20.0% empty, ~40.0% long 1x2 troffers (all running one way within a room),
-                // the rest square, some nudged a tile over. Only this cell's panels light it, so nothing leaks through walls.
-                float direct = 0.0, pool = 0.0, glow = 1e3; // glow = distance to the nearest panel's edge
+            // Ceiling panels of one room: one slot per 3.0 x 3.0 tiles (9.0 per room), but each slot rolls its own fitting so the
+            // grid doesn't repeat: ~20.0% empty, ~40.0% long 1x2 troffers (all running one way within a room),
+            // the rest square, some nudged a tile over. w fades a neighbouring room's light in; on is that room's light state.
+            void panels(vec2 cell, vec3 p, vec3 n, float w, float on, inout float direct, inout float pool, inout float glow)
+            {
+                float s = _CellSize, H = _WallHeight, tile = s / 9.0;
                 for (float bx = 0.0; bx < 3.0; bx++)
                     for (float bz = 0.0; bz < 3.0; bz++)
                     {
@@ -381,13 +402,20 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                         float area = hs.x * hs.y / 0.1764; // a 1x2 throws twice the light
                         vec3 L = vec3(c.x, H - 0.02, c.y) - p;
                         float d = length(L);
-                        direct += area * (clamp(dot(n, L / d), 0., 1.) * 0.6 + 0.4) / (1.0 + 0.5 * d * d);
+                        direct += w * on * area * (clamp(dot(n, L / d), 0., 1.) * 0.6 + 0.4) / (1.0 + 0.5 * d * d);
                         vec2 dl = p.xz - c;
-                        pool += area * exp(-dot(dl, dl) * 0.5);
+                        pool += w * area * exp(-dot(dl, dl) * 0.5);
                         glow = min(glow, max(max(abs(dl.x) - hs.x * tile, abs(dl.y) - hs.y * tile), 0.0));
                     }
-                direct *= 0.37;
+            }
 
+            vec3 shade(vec3 p, vec3 n, float mask, float t)
+            {
+                float s = _CellSize, H = _WallHeight, tile = s / 9.0; // 6.0 m cell -> 0.67 m ceiling tiles
+
+                // Which cell this pixel belongs to. Nudge along the normal so a wall picks the cell it faces.
+                vec2 cell = floor((p.xz + n.xz * 0.05) / s);
+                vec2 local = p.xz - cell * s; // 0..s inside the cell
                 // Soft shadows where walls meet. Mask bits: 1.0 N(+z), 2.0 E(+x), 4.0 S, 8.0 W; set = open.
                 float m = mod(round(mask), 16.0); // low 4.0 bits: open sides; the rest: room variant
                 float openN = mod(m, 2.0), openE = mod(floor(m / 2.0), 2.0), openS = mod(floor(m / 4.0), 2.0), openW = floor(m / 8.0);
@@ -395,6 +423,24 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                          * sideAO(1.0 - openS, local.y, vec2(0.0, 1.0), n.xz)
                          * sideAO(1.0 - openE, s - local.x, vec2(-1.0, 0.0), n.xz)
                          * sideAO(1.0 - openW, local.x, vec2(1.0, 0.0), n.xz);
+
+                // Light blends across open sides so rooms don't meet in a hard line: near an open edge the room
+                // next door adds its panels and its light state, fading from half-and-half at the edge to nothing
+                // at this room's middle. Closed sides never blend, so light still doesn't leak through walls.
+                vec2 toX = vec2(local.x < s * 0.5 ? -1.0 : 1.0, 0.0), toZ = vec2(0.0, local.y < s * 0.5 ? -1.0 : 1.0);
+                float fz = (toZ.y < 0.0 ? openS : openN) * (abs(local.y - s * 0.5) / (s * 0.5));
+                float fx = (toX.x < 0.0 ? openW : openE) * (abs(local.x - s * 0.5) / (s * 0.5)); // 1.0 at the edge, 0.0 mid-room
+                vec3 lit = roomLight(cell, t), litX = roomLight(cell + toX, t), litZ = roomLight(cell + toZ, t);
+                float wx = fx * 0.5, wz = fz * 0.5; // the shared state is half-and-half right at the edge
+                float on = lit.x; // this room's panels, for the glow of its own fittings
+                float amb = lit.y * (1.0 - wx - wz) + litX.y * wx + litZ.y * wz;
+                float power = lit.z * (1.0 - wx - wz) + litX.z * wx + litZ.z * wz;
+
+                float direct = 0.0, pool = 0.0, glow = 1e3; // glow = distance to the nearest panel's edge
+                panels(cell, p, n, 1.0, lit.x, direct, pool, glow);
+                if (fx > 0.0) panels(cell + toX, p, n, fx, litX.x, direct, pool, glow);
+                if (fz > 0.0) panels(cell + toZ, p, n, fz, litZ.x, direct, pool, glow);
+                direct *= 0.37;
 
                 vec3 albedo;
                 float emissive = 0.0;
@@ -464,9 +510,7 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 }
 
                 vec3 lightCol = mix(vec3(1.0, 0.75, 0.45), vec3(1.0, 0.94, 0.70), power); // low power runs warm
-                vec3 col = albedo * lightCol * (0.45 * mix(0.8, 1.0, on) * mix(0.35, 1.0, power) + direct * on * 1.6) * ao + lightCol * emissive * on;
-                // Dark rooms: ~1.0 room in 20.0, in small clusters, with the power nearly gone (10.0% brightness).
-                col *= mix(0.1, 1.0, smoothstep(0.14, 0.16, vnoise(cell * 0.5 + _Seed * 1.7 + 50.0)));
+                vec3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
                 col = 1.0 - exp(-col * 1.8); // brighter exposure, soft shoulder: washed-out highlights instead of hard clipping
                 col = pow(max(col, 0.0), vec3(0.9, 0.97, 1.25)); // camcorder grade: warm yellow rather than green
                 col = mix(col, vec3(1.0, 0.12, 0.08), letters); // on emergency power: ignores flicker and low power
@@ -551,28 +595,27 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 return 1.0 - smoothstep(0.12, 0.2, k);
             }
 
-            vec3 shade(vec3 p, vec3 n, float mask, float t)
+            // Light state of a room: x = panel brightness (flicker, dead, low power, dark room), y = ambient, z = power (0.0 = bad zone).
+            vec3 roomLight(vec2 cell, float t)
             {
-                float s = _CellSize, H = _WallHeight, tile = s / 9.0; // 6.0 m cell -> 0.67 m ceiling tiles
-
-                // Which cell this pixel belongs to. Nudge along the normal so a wall picks the cell it faces.
-                vec2 cell = floor((p.xz + n.xz * 0.05) / s);
-                vec2 local = p.xz - cell * s; // 0..s inside the cell
                 float h = hash(cell * 7.13 + 1.7);
-
-                // Low-power zones: big patches of rooms where the lights run dim, warm and unsteady.
-                float power = smoothstep(0.2, 0.32, vnoise(cell * 0.35 + _Seed)); // ~1.0 room in 8.0 is in a bad zone
-
-                // Light state: steady almost everywhere (~3.0% dead, ~1.0% flickering); about half flicker inside bad-power zones.
+                float power = smoothstep(0.2, 0.32, vnoise(cell * 0.35 + _Seed)); // low-power zones: ~1.0 room in 8.0
+                // Steady almost everywhere (~3.0% dead, ~1.0% flickering); about half flicker inside bad-power zones.
                 float on = 0.97 + 0.03 * sin(t * 100.0 + h * 50.0);
                 if (h < 0.03) on = 0.35;
                 else if (h < mix(0.5, 0.01, power)) on = hash(vec2(floor(t * 14.0 + h * 97.0), h)) > 0.35 ? 1.0 : 0.45;
                 on *= mix(0.3, 1.0, power);
+                // Dark rooms: ~1.0 room in 20.0, in small clusters, with the power nearly gone (10.0% brightness).
+                float dark = mix(0.1, 1.0, smoothstep(0.14, 0.16, vnoise(cell * 0.5 + _Seed * 1.7 + 50.0)));
+                return vec3(on * dark, mix(0.8, 1.0, on) * mix(0.35, 1.0, power) * dark, power);
+            }
 
-                // Ceiling panels: one slot per 3.0 x 3.0 tiles (9.0 per cell), but each slot rolls its own fitting so the
-                // grid doesn't repeat: ~20.0% empty, ~40.0% long 1x2 troffers (all running one way within a room),
-                // the rest square, some nudged a tile over. Only this cell's panels light it, so nothing leaks through walls.
-                float direct = 0.0, pool = 0.0, glow = 1e3; // glow = distance to the nearest panel's edge
+            // Ceiling panels of one room: one slot per 3.0 x 3.0 tiles (9.0 per room), but each slot rolls its own fitting so the
+            // grid doesn't repeat: ~20.0% empty, ~40.0% long 1x2 troffers (all running one way within a room),
+            // the rest square, some nudged a tile over. w fades a neighbouring room's light in; on is that room's light state.
+            void panels(vec2 cell, vec3 p, vec3 n, float w, float on, inout float direct, inout float pool, inout float glow)
+            {
+                float s = _CellSize, H = _WallHeight, tile = s / 9.0;
                 for (float bx = 0.0; bx < 3.0; bx++)
                     for (float bz = 0.0; bz < 3.0; bz++)
                     {
@@ -591,13 +634,20 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                         float area = hs.x * hs.y / 0.1764; // a 1x2 throws twice the light
                         vec3 L = vec3(c.x, H - 0.02, c.y) - p;
                         float d = length(L);
-                        direct += area * (clamp(dot(n, L / d), 0., 1.) * 0.6 + 0.4) / (1.0 + 0.5 * d * d);
+                        direct += w * on * area * (clamp(dot(n, L / d), 0., 1.) * 0.6 + 0.4) / (1.0 + 0.5 * d * d);
                         vec2 dl = p.xz - c;
-                        pool += area * exp(-dot(dl, dl) * 0.5);
+                        pool += w * area * exp(-dot(dl, dl) * 0.5);
                         glow = min(glow, max(max(abs(dl.x) - hs.x * tile, abs(dl.y) - hs.y * tile), 0.0));
                     }
-                direct *= 0.37;
+            }
 
+            vec3 shade(vec3 p, vec3 n, float mask, float t)
+            {
+                float s = _CellSize, H = _WallHeight, tile = s / 9.0; // 6.0 m cell -> 0.67 m ceiling tiles
+
+                // Which cell this pixel belongs to. Nudge along the normal so a wall picks the cell it faces.
+                vec2 cell = floor((p.xz + n.xz * 0.05) / s);
+                vec2 local = p.xz - cell * s; // 0..s inside the cell
                 // Soft shadows where walls meet. Mask bits: 1.0 N(+z), 2.0 E(+x), 4.0 S, 8.0 W; set = open.
                 float m = mod(round(mask), 16.0); // low 4.0 bits: open sides; the rest: room variant
                 float openN = mod(m, 2.0), openE = mod(floor(m / 2.0), 2.0), openS = mod(floor(m / 4.0), 2.0), openW = floor(m / 8.0);
@@ -605,6 +655,24 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                          * sideAO(1.0 - openS, local.y, vec2(0.0, 1.0), n.xz)
                          * sideAO(1.0 - openE, s - local.x, vec2(-1.0, 0.0), n.xz)
                          * sideAO(1.0 - openW, local.x, vec2(1.0, 0.0), n.xz);
+
+                // Light blends across open sides so rooms don't meet in a hard line: near an open edge the room
+                // next door adds its panels and its light state, fading from half-and-half at the edge to nothing
+                // at this room's middle. Closed sides never blend, so light still doesn't leak through walls.
+                vec2 toX = vec2(local.x < s * 0.5 ? -1.0 : 1.0, 0.0), toZ = vec2(0.0, local.y < s * 0.5 ? -1.0 : 1.0);
+                float fz = (toZ.y < 0.0 ? openS : openN) * (abs(local.y - s * 0.5) / (s * 0.5));
+                float fx = (toX.x < 0.0 ? openW : openE) * (abs(local.x - s * 0.5) / (s * 0.5)); // 1.0 at the edge, 0.0 mid-room
+                vec3 lit = roomLight(cell, t), litX = roomLight(cell + toX, t), litZ = roomLight(cell + toZ, t);
+                float wx = fx * 0.5, wz = fz * 0.5; // the shared state is half-and-half right at the edge
+                float on = lit.x; // this room's panels, for the glow of its own fittings
+                float amb = lit.y * (1.0 - wx - wz) + litX.y * wx + litZ.y * wz;
+                float power = lit.z * (1.0 - wx - wz) + litX.z * wx + litZ.z * wz;
+
+                float direct = 0.0, pool = 0.0, glow = 1e3; // glow = distance to the nearest panel's edge
+                panels(cell, p, n, 1.0, lit.x, direct, pool, glow);
+                if (fx > 0.0) panels(cell + toX, p, n, fx, litX.x, direct, pool, glow);
+                if (fz > 0.0) panels(cell + toZ, p, n, fz, litZ.x, direct, pool, glow);
+                direct *= 0.37;
 
                 vec3 albedo;
                 float emissive = 0.0;
@@ -674,9 +742,7 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 }
 
                 vec3 lightCol = mix(vec3(0.9, 0.85, 0.6), vec3(0.92, 1.0, 0.9), power); // cold fluorescent tubes // low power runs warm
-                vec3 col = albedo * lightCol * (0.45 * mix(0.8, 1.0, on) * mix(0.35, 1.0, power) + direct * on * 1.6) * ao + lightCol * emissive * on;
-                // Dark rooms: ~1.0 room in 20.0, in small clusters, with the power nearly gone (10.0% brightness).
-                col *= mix(0.1, 1.0, smoothstep(0.14, 0.16, vnoise(cell * 0.5 + _Seed * 1.7 + 50.0)));
+                vec3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
                 col = 1.0 - exp(-col * 1.25); // darker exposure
                 col = pow(max(col, 0.0), vec3(1.1, 1.05, 1.2)); // higher contrast
                 float grey = dot(col, vec3(0.3, 0.59, 0.11));
@@ -763,28 +829,27 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 return 1.0 - smoothstep(0.12, 0.2, k);
             }
 
-            vec3 shade(vec3 p, vec3 n, float mask, float t)
+            // Light state of a room: x = panel brightness (flicker, dead, low power, dark room), y = ambient, z = power (0.0 = bad zone).
+            vec3 roomLight(vec2 cell, float t)
             {
-                float s = _CellSize, H = _WallHeight, tile = s / 9.0; // 6.0 m cell -> 0.67 m ceiling tiles
-
-                // Which cell this pixel belongs to. Nudge along the normal so a wall picks the cell it faces.
-                vec2 cell = floor((p.xz + n.xz * 0.05) / s);
-                vec2 local = p.xz - cell * s; // 0..s inside the cell
                 float h = hash(cell * 7.13 + 1.7);
-
-                // Low-power zones: big patches of rooms where the lights run dim, warm and unsteady.
-                float power = smoothstep(0.2, 0.32, vnoise(cell * 0.35 + _Seed)); // ~1.0 room in 8.0 is in a bad zone
-
-                // Light state: steady almost everywhere (~3.0% dead, ~1.0% flickering); about half flicker inside bad-power zones.
+                float power = smoothstep(0.2, 0.32, vnoise(cell * 0.35 + _Seed)); // low-power zones: ~1.0 room in 8.0
+                // Steady almost everywhere (~3.0% dead, ~1.0% flickering); about half flicker inside bad-power zones.
                 float on = 0.97 + 0.03 * sin(t * 100.0 + h * 50.0);
                 if (h < 0.03) on = 0.35;
                 else if (h < mix(0.5, 0.01, power)) on = hash(vec2(floor(t * 14.0 + h * 97.0), h)) > 0.35 ? 1.0 : 0.45;
                 on *= mix(0.3, 1.0, power);
+                // Dark rooms: ~1.0 room in 20.0, in small clusters, with the power nearly gone (10.0% brightness).
+                float dark = mix(0.1, 1.0, smoothstep(0.14, 0.16, vnoise(cell * 0.5 + _Seed * 1.7 + 50.0)));
+                return vec3(on * dark, mix(0.8, 1.0, on) * mix(0.35, 1.0, power) * dark, power);
+            }
 
-                // Ceiling panels: one slot per 3.0 x 3.0 tiles (9.0 per cell), but each slot rolls its own fitting so the
-                // grid doesn't repeat: ~20.0% empty, ~40.0% long 1x2 troffers (all running one way within a room),
-                // the rest square, some nudged a tile over. Only this cell's panels light it, so nothing leaks through walls.
-                float direct = 0.0, pool = 0.0, glow = 1e3; // glow = distance to the nearest panel's edge
+            // Ceiling panels of one room: one slot per 3.0 x 3.0 tiles (9.0 per room), but each slot rolls its own fitting so the
+            // grid doesn't repeat: ~20.0% empty, ~40.0% long 1x2 troffers (all running one way within a room),
+            // the rest square, some nudged a tile over. w fades a neighbouring room's light in; on is that room's light state.
+            void panels(vec2 cell, vec3 p, vec3 n, float w, float on, inout float direct, inout float pool, inout float glow)
+            {
+                float s = _CellSize, H = _WallHeight, tile = s / 9.0;
                 for (float bx = 0.0; bx < 3.0; bx++)
                     for (float bz = 0.0; bz < 3.0; bz++)
                     {
@@ -803,13 +868,20 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                         float area = hs.x * hs.y / 0.1764; // a 1x2 throws twice the light
                         vec3 L = vec3(c.x, H - 0.02, c.y) - p;
                         float d = length(L);
-                        direct += area * (clamp(dot(n, L / d), 0., 1.) * 0.6 + 0.4) / (1.0 + 0.5 * d * d);
+                        direct += w * on * area * (clamp(dot(n, L / d), 0., 1.) * 0.6 + 0.4) / (1.0 + 0.5 * d * d);
                         vec2 dl = p.xz - c;
-                        pool += area * exp(-dot(dl, dl) * 0.5);
+                        pool += w * area * exp(-dot(dl, dl) * 0.5);
                         glow = min(glow, max(max(abs(dl.x) - hs.x * tile, abs(dl.y) - hs.y * tile), 0.0));
                     }
-                direct *= 0.37;
+            }
 
+            vec3 shade(vec3 p, vec3 n, float mask, float t)
+            {
+                float s = _CellSize, H = _WallHeight, tile = s / 9.0; // 6.0 m cell -> 0.67 m ceiling tiles
+
+                // Which cell this pixel belongs to. Nudge along the normal so a wall picks the cell it faces.
+                vec2 cell = floor((p.xz + n.xz * 0.05) / s);
+                vec2 local = p.xz - cell * s; // 0..s inside the cell
                 // Soft shadows where walls meet. Mask bits: 1.0 N(+z), 2.0 E(+x), 4.0 S, 8.0 W; set = open.
                 float m = mod(round(mask), 16.0); // low 4.0 bits: open sides; the rest: room variant
                 float openN = mod(m, 2.0), openE = mod(floor(m / 2.0), 2.0), openS = mod(floor(m / 4.0), 2.0), openW = floor(m / 8.0);
@@ -817,6 +889,24 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                          * sideAO(1.0 - openS, local.y, vec2(0.0, 1.0), n.xz)
                          * sideAO(1.0 - openE, s - local.x, vec2(-1.0, 0.0), n.xz)
                          * sideAO(1.0 - openW, local.x, vec2(1.0, 0.0), n.xz);
+
+                // Light blends across open sides so rooms don't meet in a hard line: near an open edge the room
+                // next door adds its panels and its light state, fading from half-and-half at the edge to nothing
+                // at this room's middle. Closed sides never blend, so light still doesn't leak through walls.
+                vec2 toX = vec2(local.x < s * 0.5 ? -1.0 : 1.0, 0.0), toZ = vec2(0.0, local.y < s * 0.5 ? -1.0 : 1.0);
+                float fz = (toZ.y < 0.0 ? openS : openN) * (abs(local.y - s * 0.5) / (s * 0.5));
+                float fx = (toX.x < 0.0 ? openW : openE) * (abs(local.x - s * 0.5) / (s * 0.5)); // 1.0 at the edge, 0.0 mid-room
+                vec3 lit = roomLight(cell, t), litX = roomLight(cell + toX, t), litZ = roomLight(cell + toZ, t);
+                float wx = fx * 0.5, wz = fz * 0.5; // the shared state is half-and-half right at the edge
+                float on = lit.x; // this room's panels, for the glow of its own fittings
+                float amb = lit.y * (1.0 - wx - wz) + litX.y * wx + litZ.y * wz;
+                float power = lit.z * (1.0 - wx - wz) + litX.z * wx + litZ.z * wz;
+
+                float direct = 0.0, pool = 0.0, glow = 1e3; // glow = distance to the nearest panel's edge
+                panels(cell, p, n, 1.0, lit.x, direct, pool, glow);
+                if (fx > 0.0) panels(cell + toX, p, n, fx, litX.x, direct, pool, glow);
+                if (fz > 0.0) panels(cell + toZ, p, n, fz, litZ.x, direct, pool, glow);
+                direct *= 0.37;
 
                 vec3 albedo;
                 float emissive = 0.0;
@@ -886,9 +976,7 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 }
 
                 vec3 lightCol = mix(vec3(1.0, 0.55, 0.25), vec3(1.0, 0.72, 0.42), power); // amber // low power runs warm
-                vec3 col = albedo * lightCol * (0.45 * mix(0.8, 1.0, on) * mix(0.35, 1.0, power) + direct * on * 1.6) * ao + lightCol * emissive * on;
-                // Dark rooms: ~1.0 room in 20.0, in small clusters, with the power nearly gone (10.0% brightness).
-                col *= mix(0.1, 1.0, smoothstep(0.14, 0.16, vnoise(cell * 0.5 + _Seed * 1.7 + 50.0)));
+                vec3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
                 col = 1.0 - exp(-col * 1.4); // darker, deeper shadows: washed-out highlights instead of hard clipping
                 col = pow(max(col, 0.0), vec3(0.9, 1.05, 1.6)); // orange grade, blue pulled right out
                 col = mix(col, vec3(1.0, 0.12, 0.08), letters); // on emergency power: ignores flicker and low power
@@ -973,28 +1061,27 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 return 1.0 - smoothstep(0.12, 0.2, k);
             }
 
-            vec3 shade(vec3 p, vec3 n, float mask, float t)
+            // Light state of a room: x = panel brightness (flicker, dead, low power, dark room), y = ambient, z = power (0.0 = bad zone).
+            vec3 roomLight(vec2 cell, float t)
             {
-                float s = _CellSize, H = _WallHeight, tile = s / 9.0; // 6.0 m cell -> 0.67 m ceiling tiles
-
-                // Which cell this pixel belongs to. Nudge along the normal so a wall picks the cell it faces.
-                vec2 cell = floor((p.xz + n.xz * 0.05) / s);
-                vec2 local = p.xz - cell * s; // 0..s inside the cell
                 float h = hash(cell * 7.13 + 1.7);
-
-                // Low-power zones: big patches of rooms where the lights run dim, warm and unsteady.
-                float power = smoothstep(0.2, 0.32, vnoise(cell * 0.35 + _Seed)); // ~1.0 room in 8.0 is in a bad zone
-
-                // Light state: steady almost everywhere (~3.0% dead, ~1.0% flickering); about half flicker inside bad-power zones.
+                float power = smoothstep(0.2, 0.32, vnoise(cell * 0.35 + _Seed)); // low-power zones: ~1.0 room in 8.0
+                // Steady almost everywhere (~3.0% dead, ~1.0% flickering); about half flicker inside bad-power zones.
                 float on = 0.97 + 0.03 * sin(t * 100.0 + h * 50.0);
                 if (h < 0.03) on = 0.35;
                 else if (h < mix(0.5, 0.01, power)) on = hash(vec2(floor(t * 14.0 + h * 97.0), h)) > 0.35 ? 1.0 : 0.45;
                 on *= mix(0.3, 1.0, power);
+                // Dark rooms: ~1.0 room in 20.0, in small clusters, with the power nearly gone (10.0% brightness).
+                float dark = mix(0.1, 1.0, smoothstep(0.14, 0.16, vnoise(cell * 0.5 + _Seed * 1.7 + 50.0)));
+                return vec3(on * dark, mix(0.8, 1.0, on) * mix(0.35, 1.0, power) * dark, power);
+            }
 
-                // Ceiling panels: one slot per 3.0 x 3.0 tiles (9.0 per cell), but each slot rolls its own fitting so the
-                // grid doesn't repeat: ~20.0% empty, ~40.0% long 1x2 troffers (all running one way within a room),
-                // the rest square, some nudged a tile over. Only this cell's panels light it, so nothing leaks through walls.
-                float direct = 0.0, pool = 0.0, glow = 1e3; // glow = distance to the nearest panel's edge
+            // Ceiling panels of one room: one slot per 3.0 x 3.0 tiles (9.0 per room), but each slot rolls its own fitting so the
+            // grid doesn't repeat: ~20.0% empty, ~40.0% long 1x2 troffers (all running one way within a room),
+            // the rest square, some nudged a tile over. w fades a neighbouring room's light in; on is that room's light state.
+            void panels(vec2 cell, vec3 p, vec3 n, float w, float on, inout float direct, inout float pool, inout float glow)
+            {
+                float s = _CellSize, H = _WallHeight, tile = s / 9.0;
                 for (float bx = 0.0; bx < 3.0; bx++)
                     for (float bz = 0.0; bz < 3.0; bz++)
                     {
@@ -1013,13 +1100,20 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                         float area = hs.x * hs.y / 0.1764; // a 1x2 throws twice the light
                         vec3 L = vec3(c.x, H - 0.02, c.y) - p;
                         float d = length(L);
-                        direct += area * (clamp(dot(n, L / d), 0., 1.) * 0.6 + 0.4) / (1.0 + 0.5 * d * d);
+                        direct += w * on * area * (clamp(dot(n, L / d), 0., 1.) * 0.6 + 0.4) / (1.0 + 0.5 * d * d);
                         vec2 dl = p.xz - c;
-                        pool += area * exp(-dot(dl, dl) * 0.5);
+                        pool += w * area * exp(-dot(dl, dl) * 0.5);
                         glow = min(glow, max(max(abs(dl.x) - hs.x * tile, abs(dl.y) - hs.y * tile), 0.0));
                     }
-                direct *= 0.37;
+            }
 
+            vec3 shade(vec3 p, vec3 n, float mask, float t)
+            {
+                float s = _CellSize, H = _WallHeight, tile = s / 9.0; // 6.0 m cell -> 0.67 m ceiling tiles
+
+                // Which cell this pixel belongs to. Nudge along the normal so a wall picks the cell it faces.
+                vec2 cell = floor((p.xz + n.xz * 0.05) / s);
+                vec2 local = p.xz - cell * s; // 0..s inside the cell
                 // Soft shadows where walls meet. Mask bits: 1.0 N(+z), 2.0 E(+x), 4.0 S, 8.0 W; set = open.
                 float m = mod(round(mask), 16.0); // low 4.0 bits: open sides; the rest: room variant
                 float openN = mod(m, 2.0), openE = mod(floor(m / 2.0), 2.0), openS = mod(floor(m / 4.0), 2.0), openW = floor(m / 8.0);
@@ -1027,6 +1121,24 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                          * sideAO(1.0 - openS, local.y, vec2(0.0, 1.0), n.xz)
                          * sideAO(1.0 - openE, s - local.x, vec2(-1.0, 0.0), n.xz)
                          * sideAO(1.0 - openW, local.x, vec2(1.0, 0.0), n.xz);
+
+                // Light blends across open sides so rooms don't meet in a hard line: near an open edge the room
+                // next door adds its panels and its light state, fading from half-and-half at the edge to nothing
+                // at this room's middle. Closed sides never blend, so light still doesn't leak through walls.
+                vec2 toX = vec2(local.x < s * 0.5 ? -1.0 : 1.0, 0.0), toZ = vec2(0.0, local.y < s * 0.5 ? -1.0 : 1.0);
+                float fz = (toZ.y < 0.0 ? openS : openN) * (abs(local.y - s * 0.5) / (s * 0.5));
+                float fx = (toX.x < 0.0 ? openW : openE) * (abs(local.x - s * 0.5) / (s * 0.5)); // 1.0 at the edge, 0.0 mid-room
+                vec3 lit = roomLight(cell, t), litX = roomLight(cell + toX, t), litZ = roomLight(cell + toZ, t);
+                float wx = fx * 0.5, wz = fz * 0.5; // the shared state is half-and-half right at the edge
+                float on = lit.x; // this room's panels, for the glow of its own fittings
+                float amb = lit.y * (1.0 - wx - wz) + litX.y * wx + litZ.y * wz;
+                float power = lit.z * (1.0 - wx - wz) + litX.z * wx + litZ.z * wz;
+
+                float direct = 0.0, pool = 0.0, glow = 1e3; // glow = distance to the nearest panel's edge
+                panels(cell, p, n, 1.0, lit.x, direct, pool, glow);
+                if (fx > 0.0) panels(cell + toX, p, n, fx, litX.x, direct, pool, glow);
+                if (fz > 0.0) panels(cell + toZ, p, n, fz, litZ.x, direct, pool, glow);
+                direct *= 0.37;
 
                 vec3 albedo;
                 float emissive = 0.0;
@@ -1096,9 +1208,7 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 }
 
                 vec3 lightCol = mix(vec3(1.0, 0.75, 0.45), vec3(1.0, 0.94, 0.70), power); // low power runs warm
-                vec3 col = albedo * lightCol * (0.45 * mix(0.8, 1.0, on) * mix(0.35, 1.0, power) + direct * on * 1.6) * ao + lightCol * emissive * on;
-                // Dark rooms: ~1.0 room in 20.0, in small clusters, with the power nearly gone (10.0% brightness).
-                col *= mix(0.1, 1.0, smoothstep(0.14, 0.16, vnoise(cell * 0.5 + _Seed * 1.7 + 50.0)));
+                vec3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
                 col = 1.0 - exp(-col * 1.5); // soft shoulder: washed-out highlights instead of hard clipping
                 col = pow(max(col, 0.0), vec3(0.95, 1.0, 1.2));
                 col = col * 0.78 + vec3(0.12, 0.08, 0.12); // faded: lifted blacks with a magenta tint

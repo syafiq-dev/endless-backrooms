@@ -102,28 +102,27 @@ Shader "Backrooms/Surface V1"
                 return 1 - smoothstep(0.12, 0.2, k);
             }
 
-            float3 shade(float3 p, float3 n, float mask, float t)
+            // Light state of a room: x = panel brightness (flicker, dead, low power, dark room), y = ambient, z = power (0 = bad zone).
+            float3 roomLight(float2 cell, float t)
             {
-                float s = _CellSize, H = _WallHeight, tile = s / 9; // 6 m cell -> 0.67 m ceiling tiles
-
-                // Which cell this pixel belongs to. Nudge along the normal so a wall picks the cell it faces.
-                float2 cell = floor((p.xz + n.xz * 0.05) / s);
-                float2 local = p.xz - cell * s; // 0..s inside the cell
                 float h = hash(cell * 7.13 + 1.7);
-
-                // Low-power zones: big patches of rooms where the lights run dim, warm and unsteady.
-                float power = smoothstep(0.2, 0.32, vnoise(cell * 0.35 + _Seed)); // ~1 room in 8 is in a bad zone
-
-                // Light state: steady almost everywhere (~3% dead, ~1% flickering); about half flicker inside bad-power zones.
+                float power = smoothstep(0.2, 0.32, vnoise(cell * 0.35 + _Seed)); // low-power zones: ~1 room in 8
+                // Steady almost everywhere (~3% dead, ~1% flickering); about half flicker inside bad-power zones.
                 float on = 0.97 + 0.03 * sin(t * 100 + h * 50);
                 if (h < 0.03) on = 0.35;
                 else if (h < lerp(0.5, 0.01, power)) on = hash(float2(floor(t * 14 + h * 97), h)) > 0.35 ? 1 : 0.45;
                 on *= lerp(0.3, 1, power);
+                // Dark rooms: ~1 room in 20, in small clusters, with the power nearly gone (10% brightness).
+                float dark = lerp(0.1, 1, smoothstep(0.14, 0.16, vnoise(cell * 0.5 + _Seed * 1.7 + 50)));
+                return float3(on * dark, lerp(0.8, 1, on) * lerp(0.35, 1, power) * dark, power);
+            }
 
-                // Ceiling panels: one slot per 3 x 3 tiles (9 per cell), but each slot rolls its own fitting so the
-                // grid doesn't repeat: ~20% empty, ~40% long 1x2 troffers (all running one way within a room),
-                // the rest square, some nudged a tile over. Only this cell's panels light it, so nothing leaks through walls.
-                float direct = 0, pool = 0, glow = 1e3; // glow = distance to the nearest panel's edge
+            // Ceiling panels of one room: one slot per 3 x 3 tiles (9 per room), but each slot rolls its own fitting so the
+            // grid doesn't repeat: ~20% empty, ~40% long 1x2 troffers (all running one way within a room),
+            // the rest square, some nudged a tile over. w fades a neighbouring room's light in; on is that room's light state.
+            void panels(float2 cell, float3 p, float3 n, float w, float on, inout float direct, inout float pool, inout float glow)
+            {
+                float s = _CellSize, H = _WallHeight, tile = s / 9;
                 for (float bx = 0; bx < 3; bx++)
                     for (float bz = 0; bz < 3; bz++)
                     {
@@ -142,13 +141,20 @@ Shader "Backrooms/Surface V1"
                         float area = hs.x * hs.y / 0.1764; // a 1x2 throws twice the light
                         float3 L = float3(c.x, H - 0.02, c.y) - p;
                         float d = length(L);
-                        direct += area * (saturate(dot(n, L / d)) * 0.6 + 0.4) / (1 + 0.5 * d * d);
+                        direct += w * on * area * (saturate(dot(n, L / d)) * 0.6 + 0.4) / (1 + 0.5 * d * d);
                         float2 dl = p.xz - c;
-                        pool += area * exp(-dot(dl, dl) * 0.5);
+                        pool += w * area * exp(-dot(dl, dl) * 0.5);
                         glow = min(glow, max(max(abs(dl.x) - hs.x * tile, abs(dl.y) - hs.y * tile), 0));
                     }
-                direct *= 0.37;
+            }
 
+            float3 shade(float3 p, float3 n, float mask, float t)
+            {
+                float s = _CellSize, H = _WallHeight, tile = s / 9; // 6 m cell -> 0.67 m ceiling tiles
+
+                // Which cell this pixel belongs to. Nudge along the normal so a wall picks the cell it faces.
+                float2 cell = floor((p.xz + n.xz * 0.05) / s);
+                float2 local = p.xz - cell * s; // 0..s inside the cell
                 // Soft shadows where walls meet. Mask bits: 1 N(+z), 2 E(+x), 4 S, 8 W; set = open.
                 float m = fmod(round(mask), 16); // low 4 bits: open sides; the rest: room variant
                 float openN = fmod(m, 2), openE = fmod(floor(m / 2), 2), openS = fmod(floor(m / 4), 2), openW = floor(m / 8);
@@ -156,6 +162,24 @@ Shader "Backrooms/Surface V1"
                          * sideAO(1 - openS, local.y, float2(0, 1), n.xz)
                          * sideAO(1 - openE, s - local.x, float2(-1, 0), n.xz)
                          * sideAO(1 - openW, local.x, float2(1, 0), n.xz);
+
+                // Light blends across open sides so rooms don't meet in a hard line: near an open edge the room
+                // next door adds its panels and its light state, fading from half-and-half at the edge to nothing
+                // at this room's middle. Closed sides never blend, so light still doesn't leak through walls.
+                float2 toX = float2(local.x < s * 0.5 ? -1 : 1, 0), toZ = float2(0, local.y < s * 0.5 ? -1 : 1);
+                float fz = (toZ.y < 0 ? openS : openN) * (abs(local.y - s * 0.5) / (s * 0.5));
+                float fx = (toX.x < 0 ? openW : openE) * (abs(local.x - s * 0.5) / (s * 0.5)); // 1 at the edge, 0 mid-room
+                float3 lit = roomLight(cell, t), litX = roomLight(cell + toX, t), litZ = roomLight(cell + toZ, t);
+                float wx = fx * 0.5, wz = fz * 0.5; // the shared state is half-and-half right at the edge
+                float on = lit.x; // this room's panels, for the glow of its own fittings
+                float amb = lit.y * (1 - wx - wz) + litX.y * wx + litZ.y * wz;
+                float power = lit.z * (1 - wx - wz) + litX.z * wx + litZ.z * wz;
+
+                float direct = 0, pool = 0, glow = 1e3; // glow = distance to the nearest panel's edge
+                panels(cell, p, n, 1, lit.x, direct, pool, glow);
+                if (fx > 0) panels(cell + toX, p, n, fx, litX.x, direct, pool, glow);
+                if (fz > 0) panels(cell + toZ, p, n, fz, litZ.x, direct, pool, glow);
+                direct *= 0.37;
 
                 float3 albedo;
                 float emissive = 0;
@@ -225,9 +249,7 @@ Shader "Backrooms/Surface V1"
                 }
 
                 float3 lightCol = lerp(float3(1.0, 0.75, 0.45), float3(1.0, 0.94, 0.70), power); // low power runs warm
-                float3 col = albedo * lightCol * (0.45 * lerp(0.8, 1, on) * lerp(0.35, 1, power) + direct * on * 1.6) * ao + lightCol * emissive * on;
-                // Dark rooms: ~1 room in 20, in small clusters, with the power nearly gone (10% brightness).
-                col *= lerp(0.1, 1, smoothstep(0.14, 0.16, vnoise(cell * 0.5 + _Seed * 1.7 + 50)));
+                float3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
                 col = 1 - exp(-col * 1.5); // soft shoulder: washed-out highlights instead of hard clipping
                 col = pow(max(col, 0), float3(0.95, 0.95, 1.35)); // camcorder grade: pull blue out, everything leans yellow-green
                 col = lerp(col, float3(1.0, 0.12, 0.08), letters); // on emergency power: ignores flicker and low power
