@@ -43,21 +43,24 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 #look { margin-right: 8px; }
 #act { position: fixed; left: 50%; bottom: 22%; transform: translateX(-50%); z-index: 5; font: inherit; font-size: clamp(20px, 4vw, 30px); color: var(--ink); background: color-mix(in srgb, var(--shade) 45%, transparent); border: 1px solid var(--ink); padding: 6px 18px; cursor: pointer; letter-spacing: .08em; }
 #lookname { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; font-size: clamp(32px, 9vw, 72px); color: var(--ink); letter-spacing: .08em; text-shadow: 3px 0 rgba(255, 40, 40, .55), -3px 0 rgba(40, 200, 255, .5); z-index: 5; }
-#nv.on { color: #7dff86; border-color: #7dff86; }
-#mute, #look, #nv { pointer-events: auto; font: inherit; font-size: .8em; color: var(--ink); background: none; border: 1px solid color-mix(in srgb, var(--ink) 50%, transparent); padding: 2px 10px; cursor: pointer; }
+#mute, #look, #nv { pointer-events: auto; font-family: inherit; font-size: .8em; color: var(--ink); background: none; border: 1px solid color-mix(in srgb, var(--ink) 50%, transparent); padding: 2px 10px; cursor: pointer; }
+/* NIGHT: a big square button mid-right, easy to hit with the right thumb */
+#nv { position: fixed; z-index: 5; right: max(16px, env(safe-area-inset-right, 0px)); top: 50%; transform: translateY(-50%); width: clamp(64px, 13vmin, 110px); aspect-ratio: 1; padding: 0; font-size: clamp(16px, 3vmin, 24px); background: color-mix(in srgb, var(--shade) 35%, transparent); }
+#nv.on { color: var(--shade); background: var(--ink); }
 @media (prefers-reduced-motion: reduce) { #fade { transition: none; } }
 </style>
 
 <canvas id="c"></canvas>
 <div class="hud">
-  <div class="row"><span class="play">PLAY <b></b></span><span><span id="keyhud" hidden>KEY &nbsp;</span><span id="run">RUN 1</span></span></div>
+  <div class="row"><span class="play">PLAY <b></b></span><span><span id="keyhud" hidden>KEY &nbsp;</span><span id="run">TAPE 1</span></span></div>
   <div></div>
   <div class="row">
     <span class="stamp"><span class="debug" id="debug">(DEBUG MODE)</span><br id="debugbr"><span id="clock">PM 5:00:00</span><br><span id="date">OCT. 28 1996</span></span>
-    <span class="tools"><span class="hint" id="hint"></span><button id="nv" type="button" aria-pressed="false">NIGHT</button><button id="look" type="button">LOOK</button><button id="mute" type="button">SOUND ON</button></span>
+    <span class="tools"><span class="hint" id="hint"></span><button id="look" type="button">LOOK</button><button id="mute" type="button">SOUND ON</button></span>
   </div>
 </div>
 <div id="fade"></div>
+<button id="nv" type="button" aria-pressed="false" hidden>NIGHT</button>
 <div id="lookname" hidden></div>
 <button id="act" type="button" hidden>SEARCH</button>
 <div id="start">
@@ -183,12 +186,12 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                     }
             }
 
-            // Rare wet carpet (~2.0% of the floor): irregular soaked patches, on rotated noise so they never line up with the room grid.
+            // Rare wet carpet (~1.0% of the floor): irregular soaked patches, on rotated noise so they never line up with the room grid.
             // The game code mirrors this (wetAt) so footsteps squelch on them.
             float wetness(vec2 xz)
             {
                 vec2 r = vec2(xz.x * 0.8 + xz.y * 0.6, xz.y * 0.8 - xz.x * 0.6);
-                return smoothstep(0.88, 0.92, vnoise(r * 0.09 + _Seed * 1.3 + 70.0) + vnoise(r * 0.9 + 3.3) * 0.12 - 0.06);
+                return smoothstep(0.92, 0.96, vnoise(r * 0.09 + _Seed * 1.3 + 70.0) + vnoise(r * 0.9 + 3.3) * 0.12 - 0.06);
             }
 
             vec3 shade(vec3 p, vec3 n, float mask, float t)
@@ -444,12 +447,12 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                     }
             }
 
-            // Rare wet carpet (~2.0% of the floor): irregular soaked patches, on rotated noise so they never line up with the room grid.
+            // Rare wet carpet (~1.0% of the floor): irregular soaked patches, on rotated noise so they never line up with the room grid.
             // The game code mirrors this (wetAt) so footsteps squelch on them.
             float wetness(vec2 xz)
             {
                 vec2 r = vec2(xz.x * 0.8 + xz.y * 0.6, xz.y * 0.8 - xz.x * 0.6);
-                return smoothstep(0.88, 0.92, vnoise(r * 0.09 + _Seed * 1.3 + 70.0) + vnoise(r * 0.9 + 3.3) * 0.12 - 0.06);
+                return smoothstep(0.92, 0.96, vnoise(r * 0.09 + _Seed * 1.3 + 70.0) + vnoise(r * 0.9 + 3.3) * 0.12 - 0.06);
             }
 
             vec3 shade(vec3 p, vec3 n, float mask, float t)
@@ -705,12 +708,12 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                     }
             }
 
-            // Rare wet carpet (~2.0% of the floor): irregular soaked patches, on rotated noise so they never line up with the room grid.
+            // Rare wet carpet (~1.0% of the floor): irregular soaked patches, on rotated noise so they never line up with the room grid.
             // The game code mirrors this (wetAt) so footsteps squelch on them.
             float wetness(vec2 xz)
             {
                 vec2 r = vec2(xz.x * 0.8 + xz.y * 0.6, xz.y * 0.8 - xz.x * 0.6);
-                return smoothstep(0.88, 0.92, vnoise(r * 0.09 + _Seed * 1.3 + 70.0) + vnoise(r * 0.9 + 3.3) * 0.12 - 0.06);
+                return smoothstep(0.92, 0.96, vnoise(r * 0.09 + _Seed * 1.3 + 70.0) + vnoise(r * 0.9 + 3.3) * 0.12 - 0.06);
             }
 
             vec3 shade(vec3 p, vec3 n, float mask, float t)
@@ -968,12 +971,12 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                     }
             }
 
-            // Rare wet carpet (~2.0% of the floor): irregular soaked patches, on rotated noise so they never line up with the room grid.
+            // Rare wet carpet (~1.0% of the floor): irregular soaked patches, on rotated noise so they never line up with the room grid.
             // The game code mirrors this (wetAt) so footsteps squelch on them.
             float wetness(vec2 xz)
             {
                 vec2 r = vec2(xz.x * 0.8 + xz.y * 0.6, xz.y * 0.8 - xz.x * 0.6);
-                return smoothstep(0.88, 0.92, vnoise(r * 0.09 + _Seed * 1.3 + 70.0) + vnoise(r * 0.9 + 3.3) * 0.12 - 0.06);
+                return smoothstep(0.92, 0.96, vnoise(r * 0.09 + _Seed * 1.3 + 70.0) + vnoise(r * 0.9 + 3.3) * 0.12 - 0.06);
             }
 
             vec3 shade(vec3 p, vec3 n, float mask, float t)
@@ -1229,12 +1232,12 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                     }
             }
 
-            // Rare wet carpet (~2.0% of the floor): irregular soaked patches, on rotated noise so they never line up with the room grid.
+            // Rare wet carpet (~1.0% of the floor): irregular soaked patches, on rotated noise so they never line up with the room grid.
             // The game code mirrors this (wetAt) so footsteps squelch on them.
             float wetness(vec2 xz)
             {
                 vec2 r = vec2(xz.x * 0.8 + xz.y * 0.6, xz.y * 0.8 - xz.x * 0.6);
-                return smoothstep(0.88, 0.92, vnoise(r * 0.09 + _Seed * 1.3 + 70.0) + vnoise(r * 0.9 + 3.3) * 0.12 - 0.06);
+                return smoothstep(0.92, 0.96, vnoise(r * 0.09 + _Seed * 1.3 + 70.0) + vnoise(r * 0.9 + 3.3) * 0.12 - 0.06);
             }
 
             vec3 shade(vec3 p, vec3 n, float mask, float t)
@@ -1427,9 +1430,10 @@ in vec2 uv0; out vec4 o;
                 col += (snow - 0.5) * (0.07 + band * 0.15 + head * 0.4);
                 col *= 0.93 + 0.07 * sin(uv.y * _SrcSize.y * 3.14159);
 
-                // Night vision: green mono, gain pushed up, extra grain like a cheap camcorder's NightShot.
-                float nvl = 1.0 - exp(-luma(col) * 2.4);
-                col = mix(col, vec3(0.3, 1.0, 0.35) * (nvl + (snow - 0.5) * 0.12), _NV);
+                // Night vision: grayscale, gain pushed up, extra grain like a cheap camcorder's NightShot.
+                float nvl = 1.0 - exp(-luma(col) * 1.8);
+                float nvg = nvl + (snow - 0.5) * 0.12;
+                col = mix(col, vec3(nvg, nvg, nvg), _NV);
 
                 // Vignette, a bit stronger in the corners like a cheap camcorder lens.
                 vec2 v = uv - 0.5;
@@ -1492,9 +1496,10 @@ in vec2 uv0; out vec4 o;
                 col += (snow - 0.5) * (0.07 + band * 0.15 + head * 0.4);
                 col *= 0.96 + 0.04 * sin(uv.y * _SrcSize.y * 3.14159);
 
-                // Night vision: green mono, gain pushed up, extra grain like a cheap camcorder's NightShot.
-                float nvl = 1.0 - exp(-luma(col) * 2.4);
-                col = mix(col, vec3(0.3, 1.0, 0.35) * (nvl + (snow - 0.5) * 0.12), _NV);
+                // Night vision: grayscale, gain pushed up, extra grain like a cheap camcorder's NightShot.
+                float nvl = 1.0 - exp(-luma(col) * 1.8);
+                float nvg = nvl + (snow - 0.5) * 0.12;
+                col = mix(col, vec3(nvg, nvg, nvg), _NV);
 
                 // Vignette, a bit stronger in the corners like a cheap camcorder lens.
                 vec2 v = uv - 0.5;
@@ -1554,9 +1559,10 @@ in vec2 uv0; out vec4 o;
                 col += (snow - 0.5) * (0.04 + band * 0.08 + head * 0.3);
                 col *= 0.97 + 0.03 * sin(uv.y * _SrcSize.y * 3.14159);
 
-                // Night vision: green mono, gain pushed up, extra grain like a cheap camcorder's NightShot.
-                float nvl = 1.0 - exp(-luma(col) * 2.4);
-                col = mix(col, vec3(0.3, 1.0, 0.35) * (nvl + (snow - 0.5) * 0.12), _NV);
+                // Night vision: grayscale, gain pushed up, extra grain like a cheap camcorder's NightShot.
+                float nvl = 1.0 - exp(-luma(col) * 1.8);
+                float nvg = nvl + (snow - 0.5) * 0.12;
+                col = mix(col, vec3(nvg, nvg, nvg), _NV);
 
                 // Vignette, a bit stronger in the corners like a cheap camcorder lens.
                 vec2 v = uv - 0.5;
@@ -1619,9 +1625,10 @@ in vec2 uv0; out vec4 o;
                 col += (snow - 0.5) * (0.07 + band * 0.15 + head * 0.4);
                 col *= 0.96 + 0.04 * sin(uv.y * _SrcSize.y * 3.14159);
 
-                // Night vision: green mono, gain pushed up, extra grain like a cheap camcorder's NightShot.
-                float nvl = 1.0 - exp(-luma(col) * 2.4);
-                col = mix(col, vec3(0.3, 1.0, 0.35) * (nvl + (snow - 0.5) * 0.12), _NV);
+                // Night vision: grayscale, gain pushed up, extra grain like a cheap camcorder's NightShot.
+                float nvl = 1.0 - exp(-luma(col) * 1.8);
+                float nvg = nvl + (snow - 0.5) * 0.12;
+                col = mix(col, vec3(nvg, nvg, nvg), _NV);
 
                 // Vignette, a bit stronger in the corners like a cheap camcorder lens.
                 vec2 v = uv - 0.5;
@@ -1683,9 +1690,10 @@ in vec2 uv0; out vec4 o;
                 col += (snow - 0.5) * (0.11 + band * 0.25 + head * 0.5);
                 col *= 0.93 + 0.07 * sin(uv.y * _SrcSize.y * 3.14159);
 
-                // Night vision: green mono, gain pushed up, extra grain like a cheap camcorder's NightShot.
-                float nvl = 1.0 - exp(-luma(col) * 2.4);
-                col = mix(col, vec3(0.3, 1.0, 0.35) * (nvl + (snow - 0.5) * 0.12), _NV);
+                // Night vision: grayscale, gain pushed up, extra grain like a cheap camcorder's NightShot.
+                float nvl = 1.0 - exp(-luma(col) * 1.8);
+                float nvg = nvl + (snow - 0.5) * 0.12;
+                col = mix(col, vec3(nvg, nvg, nvg), _NV);
 
                 // Vignette, a bit stronger in the corners like a cheap camcorder lens.
                 vec2 v = uv - 0.5;
@@ -1724,7 +1732,7 @@ const VARIANTS = [
   [[-1, 0, .1, 2], [1, 0, .1, 2]],                                                    // 8 Corridor (straight runs only)
 ];
 const CORRIDOR = 8;
-const ARM = 0.25, BEAM = 0.09, BEAM_DROP = 0.45; // archway pillars: + arms (half length, half thickness), and how far the beams hang down
+const ARM = 0.4, BEAM = 0.16, BEAM_DROP = 0.45; // archway pillars: + arms (half length, half thickness), and how far the beams hang down
 const rotate = (b, k) => { for (let i = 0; i < k; i++) b = [-b[1], b[0], b[3], b[2]]; return b; };
 // Rare furniture from Props.cs: parts are [x, y, z, half x, half y, half z, colour, spin about z]; colour 0 wood, 1 metal, 2 red, 3 white, 4 dark.
 // Chair, stool, small table, filing cabinet, stop sign, sofa, fridge, granny chair. Colour 5 olive fabric, 6 rose fabric.
@@ -2044,7 +2052,7 @@ function newRun() {
   const o = maze.m[maze.start[0]][maze.start[1]]; const d = [0, 1, 2, 3].find(d => o & BIT[d]); me.yaw = [0, 90, 180, 270][d] * Math.PI / 180;
   me.vy = me.yaw; me.vp = me.pitch; me.sy = me.sp = 0; // camera snaps to the spawn view
   if (playing) showLook(rnd(LOOKS.length)); else setLook(rnd(LOOKS.length)); // a random look every run
-  document.getElementById('run').textContent = 'RUN ' + run;
+  document.getElementById('run').textContent = 'TAPE ' + run; // each run is another tape
 }
 
 // Player is a circle; walls are the closed sides of the current cell, plus the corner pillars.
@@ -2071,7 +2079,7 @@ function vnoise(x, y) {
 }
 function wetAt(x, z) {
   const rx = x * .8 + z * .6, rz = z * .8 - x * .6, v = vnoise(rx * .09 + seed * 1.3 + 70, rz * .09 + seed * 1.3 + 70) + vnoise(rx * .9 + 3.3, rz * .9 + 3.3) * .12 - .06;
-  return Math.min(1, Math.max(0, (v - .88) / .04));
+  return Math.min(1, Math.max(0, (v - .92) / .04));
 }
 
 // Input
@@ -2140,7 +2148,7 @@ document.getElementById('mute').addEventListener('click', e => {
 
 let playing = false;
 document.getElementById('go').addEventListener('click', () => {
-  document.getElementById('start').hidden = true; playing = true; startAudio(); showLook(lookIdx);
+  document.getElementById("start").hidden = true; document.getElementById("nv").hidden = false; playing = true; startAudio(); showLook(lookIdx);
   if (!touch) canvas.requestPointerLock?.()?.catch?.(() => {});
   setTimeout(() => hint.classList.add('gone'), 6000);
 });

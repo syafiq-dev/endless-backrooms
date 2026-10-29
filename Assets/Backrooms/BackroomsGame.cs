@@ -17,6 +17,7 @@ public class BackroomsGame : MonoBehaviour
     public static string PopupText; public static float PopupAt = -10; // VhsCamera shows PopupText mid-screen for a moment
     public static bool CanSearch, HasKey; // key-item prompt and KEY marker, drawn by VhsCamera
     public static bool NightVision; // N or the NIGHT button (VhsCamera): infrared lamp + green NightShot picture, no battery
+    public static int Tape; // run number, shown as TAPE n
     public static float Seed; // this run's _Seed, so Wetness() matches the shaders
     public static void ToggleNightVision() { NightVision = !NightVision; Popup(NightVision ? "NIGHT SHOT" : "NIGHT SHOT OFF"); }
     public static void Popup(string text) { PopupText = text; PopupAt = Time.time; }
@@ -78,6 +79,7 @@ public class BackroomsGame : MonoBehaviour
         Seed = Random.Range(0f, 100f);
         Shader.SetGlobalFloat("_Seed", Seed); // moves the low-power zones, blackouts and wet patches each run
         int grow = growPerRun * run++;
+        Tape = run;
         var m = Maze.Generate(Mathf.Min(width + grow, maxSize), Mathf.Min(depth + grow, maxSize), Random.Range(int.MinValue, int.MaxValue), loopChance, out var start, out var exit, out var features);
 
         // Half the runs the exit is locked: the key is in a key item in the room farthest from both the start and the exit.
@@ -128,7 +130,7 @@ public class BackroomsGame : MonoBehaviour
     {
         float rx = x * 0.8f + z * 0.6f, rz = z * 0.8f - x * 0.6f;
         float v = VNoise(rx * 0.09f + Seed * 1.3f + 70, rz * 0.09f + Seed * 1.3f + 70) + VNoise(rx * 0.9f + 3.3f, rz * 0.9f + 3.3f) * 0.12f - 0.06f;
-        return Mathf.Clamp01((v - 0.88f) / 0.04f);
+        return Mathf.Clamp01((v - 0.92f) / 0.04f);
     }
 
     Vector3 CellCenter((int x, int z) c) => new Vector3((c.x + 0.5f) * cellSize, 0, (c.z + 0.5f) * cellSize);
@@ -250,7 +252,7 @@ public class BackroomsGame : MonoBehaviour
                     break;
                 }
             }
-        const float Arm = 0.25f, Beam = 0.09f, BeamDrop = 0.45f; // archway pillars: + arms (half length, half thickness), and how far beams hang down
+        const float Arm = 0.4f, Beam = 0.16f, BeamDrop = 0.45f; // archway pillars: + arms (half length, half thickness), and how far beams hang down
         for (int x = 0; x < W; x++)
             for (int z = 0; z < D; z++)
             {

@@ -153,12 +153,12 @@ Shader "Backrooms/Surface V1"
                     }
             }
 
-            // Rare wet carpet (~2% of the floor): irregular soaked patches, on rotated noise so they never line up with the room grid.
+            // Rare wet carpet (~1% of the floor): irregular soaked patches, on rotated noise so they never line up with the room grid.
             // The game code mirrors this (wetAt) so footsteps squelch on them.
             float wetness(float2 xz)
             {
                 float2 r = float2(xz.x * 0.8 + xz.y * 0.6, xz.y * 0.8 - xz.x * 0.6);
-                return smoothstep(0.88, 0.92, vnoise(r * 0.09 + _Seed * 1.3 + 70) + vnoise(r * 0.9 + 3.3) * 0.12 - 0.06);
+                return smoothstep(0.92, 0.96, vnoise(r * 0.09 + _Seed * 1.3 + 70) + vnoise(r * 0.9 + 3.3) * 0.12 - 0.06);
             }
 
             float3 shade(float3 p, float3 n, float mask, float t)

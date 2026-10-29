@@ -83,9 +83,10 @@ Shader "Backrooms/VHS V2"
                 col += (snow - 0.5) * (0.07 + band * 0.15 + head * 0.4);
                 col *= 0.96 + 0.04 * sin(uv.y * _SrcSize.y * 3.14159);
 
-                // Night vision: green mono, gain pushed up, extra grain like a cheap camcorder's NightShot.
-                float nvl = 1 - exp(-luma(col) * 2.4);
-                col = lerp(col, float3(0.3, 1.0, 0.35) * (nvl + (snow - 0.5) * 0.12), _NV);
+                // Night vision: grayscale, gain pushed up, extra grain like a cheap camcorder's NightShot.
+                float nvl = 1 - exp(-luma(col) * 1.8);
+                float nvg = nvl + (snow - 0.5) * 0.12;
+                col = lerp(col, float3(nvg, nvg, nvg), _NV);
 
                 // Vignette, a bit stronger in the corners like a cheap camcorder lens.
                 float2 v = uv - 0.5;

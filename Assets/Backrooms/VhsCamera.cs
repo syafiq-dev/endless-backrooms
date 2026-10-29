@@ -68,8 +68,9 @@ public class VhsCamera : MonoBehaviour
         float bw = Screen.height * 0.22f, bh = Screen.height * 0.08f;
         if (GUI.Button(new Rect(Screen.width - bw - Screen.height * 0.04f, Screen.height - bh - Screen.height * 0.04f, bw, bh), "LOOK"))
             FindAnyObjectByType<BackroomsGame>()?.NextLook();
-        // NIGHT button next to it (or N): night vision.
-        if (GUI.Button(new Rect(Screen.width - 2 * bw - Screen.height * 0.07f, Screen.height - bh - Screen.height * 0.04f, bw, bh), BackroomsGame.NightVision ? "NIGHT ON" : "NIGHT"))
+        // NIGHT (or N): night vision. A big square button mid-right, easy to hit with the right thumb.
+        float nw = Screen.height * 0.16f;
+        if (GUI.Button(new Rect(Screen.width - nw - Screen.height * 0.04f, (Screen.height - nw) / 2, nw, nw), BackroomsGame.NightVision ? "NIGHT ON" : "NIGHT"))
             BackroomsGame.ToggleNightVision();
         // Key item prompt (also E on a keyboard) and the KEY marker once you have it.
         float sw = Screen.height * 0.32f, sh = Screen.height * 0.1f;
@@ -88,7 +89,8 @@ public class VhsCamera : MonoBehaviour
         }
         float m = Screen.height * 0.05f;
         GUI.Label(new Rect(m, m, Screen.width, style.fontSize * 1.5f), "PLAY", style);
-        if (BackroomsGame.HasKey) GUI.Label(new Rect(Screen.width - m - style.fontSize * 3, m, style.fontSize * 3, style.fontSize * 1.5f), "KEY", style);
+        string tape = (BackroomsGame.HasKey ? "KEY  " : "") + "TAPE " + BackroomsGame.Tape; // each run is another tape
+        GUI.Label(new Rect(Screen.width - m - style.fontSize * 6, m, style.fontSize * 6, style.fontSize * 1.5f), tape, new GUIStyle(style) { alignment = TextAnchor.UpperRight });
         var now = System.DateTime.Now;
         string stamp = now.ToString("tt h:mm:ss") + "\n" + now.ToString("MMM. dd").ToUpper() + " 1996";
         GUI.Label(new Rect(m, Screen.height - m - style.fontSize * 2.6f, Screen.width, style.fontSize * 3), stamp, style);
