@@ -39,7 +39,7 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 #start h1 { margin: 0; font-weight: 400; font-size: 1.5em; line-height: .9; color: var(--paper); letter-spacing: .06em; text-wrap: balance; }
 #start p { margin: 0; font-size: 22px; line-height: 1.15; }
 #start .modes { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
-#dbghold { position: absolute; left: 50%; bottom: 0; width: 30vw; height: 14vh; transform: translateX(-50%); -webkit-touch-callout: none; user-select: none; touch-action: none; } /* invisible: hold 4 s to flip debug mode */
+#dbghold { position: absolute; left: 50%; bottom: 0; width: 30vw; height: 14vh; transform: translateX(-50%); -webkit-touch-callout: none; user-select: none; touch-action: none; } /* invisible: hold 3 s to flip debug mode */
 #start button { font: inherit; font-size: 28px; color: var(--shade); background: var(--paper); border: 0; padding: 10px 22px; justify-self: center; cursor: pointer; letter-spacing: .08em; }
 #start button:focus-visible, #mute:focus-visible, #look:focus-visible, #nv:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 #look { margin-right: 8px; }
@@ -118,7 +118,7 @@ const WALL_HALF = 0.2, TRIM = 0.02, TRIM_H = 0.1;
 // Corner caps and archway beams are drawn this much thinner than they really are, so their faces sit just behind the wall or
 // pillar faces they line up with. Two faces in the same plane flicker (z-fighting); collisions still use the full size.
 const SEAM = 0.003;
-let DEBUG = true; // hold the bottom middle of the start screen for 4 s to flip it (remembered on this device)
+let DEBUG = true; // hold the bottom middle of the start screen for 3 s to flip it (remembered on this device)
 try { const v = localStorage.getItem('debug'); if (v !== null) DEBUG = v === '1'; } catch {}
 const ENTITY = true; // hidden switch: false = no entity (Entity.cs: BackroomsGame.entityOn) // debug/dev mode (DEBUG): (DEBUG MODE) and rooms explored on the stamp
 // Room interiors from RoomVariants.cs: [centre x, centre z, half x, half z] around the cell centre, for 4 m cells.
@@ -771,7 +771,7 @@ const showDebug = () => document.getElementById('debug').hidden = document.getEl
 showDebug();
 { // hidden debug switch on the start screen
   const el = document.getElementById('dbghold'); let timer;
-  el.addEventListener('pointerdown', () => { timer = setTimeout(() => { DEBUG = !DEBUG; showDebug(); popup(DEBUG ? 'DEBUG ON' : 'DEBUG OFF'); try { localStorage.setItem('debug', DEBUG ? '1' : '0'); } catch {} }, 4000); });
+  el.addEventListener('pointerdown', () => { timer = setTimeout(() => { DEBUG = !DEBUG; showDebug(); popup(DEBUG ? 'DEBUG ON' : 'DEBUG OFF'); try { localStorage.setItem('debug', DEBUG ? '1' : '0'); } catch {} }, 3000); });
   for (const e of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(e, () => clearTimeout(timer));
   el.addEventListener('contextmenu', e => e.preventDefault()); // a long press on a phone would open the menu
 }

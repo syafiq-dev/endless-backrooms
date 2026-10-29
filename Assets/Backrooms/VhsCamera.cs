@@ -73,14 +73,14 @@ public class VhsCamera : MonoBehaviour
             float w = Screen.height * 0.4f, h = Screen.height * 0.12f, y = Screen.height * 0.55f;
             if (GUI.Button(new Rect(Screen.width / 2f - w - 10, y, w, h), "NORMAL")) BackroomsGame.Begin(false);
             if (GUI.Button(new Rect(Screen.width / 2f + 10, y, w, h), "EASY")) BackroomsGame.Begin(true);
-            // Hidden debug switch: hold the bottom middle of the start screen for 4 s.
+            // Hidden debug switch: hold the bottom middle of the start screen for 3 s.
             var ptr = Pointer.current;
             var at = ptr != null ? ptr.position.ReadValue() : Vector2.zero;
             bool held = ptr != null && ptr.press.isPressed && new Rect(Screen.width * 0.35f, Screen.height * 0.86f, Screen.width * 0.3f, Screen.height * 0.14f).Contains(new Vector2(at.x, Screen.height - at.y));
             if (Event.current.type == EventType.Repaint)
             {
                 holdTime = held ? holdTime + Time.unscaledDeltaTime : 0;
-                if (holdTime > 4) { holdTime = -1e9f; FindAnyObjectByType<BackroomsGame>()?.ToggleDebug(); } // once per hold
+                if (holdTime > 3) { holdTime = -1e9f; FindAnyObjectByType<BackroomsGame>()?.ToggleDebug(); } // once per hold
             }
             return;
         }
