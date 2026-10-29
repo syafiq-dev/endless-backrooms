@@ -1741,6 +1741,9 @@ const SIZE = 24, GROW = 0, MAX_SIZE = 32; // 24x24 rooms (~20 min runs); GROW > 
 let W = SIZE, D = SIZE;
 const S = 6, H = 3.4, LOOP = 0.3, FOG = [0.50, 0.48, 0.20], R = 0.25;
 const WALL_HALF = 0.2, TRIM = 0.02, TRIM_H = 0.1;
+// Corner caps and archway beams are drawn this much thinner than they really are, so their faces sit just behind the wall or
+// pillar faces they line up with. Two faces in the same plane flicker (z-fighting); collisions still use the full size.
+const SEAM = 0.003;
 let DEBUG = true; // hold the bottom middle of the start screen for 4 s to flip it (remembered on this device)
 try { const v = localStorage.getItem('debug'); if (v !== null) DEBUG = v === '1'; } catch {}
 const ENTITY = true; // hidden switch: false = no entity (Entity.cs: BackroomsGame.entityOn) // debug/dev mode (DEBUG): (DEBUG MODE) and rooms explored on the stamp
@@ -2024,8 +2027,8 @@ function buildMesh({ m, exit, key, long, arch, funnel }) {
     if (!pillar(i, j)) continue;
     const px = 2 * i, pz = 2 * j, cx = Math.min(Math.floor(i / 3), W - 1), cz = Math.min(Math.floor(j / 3), D - 1);
     for (const [a, b] of [[ARM, BEAM], [BEAM, ARM]]) { box(px, pz, a, b, H, V, I); solids[cx][cz].push([px, pz, a, b]); }
-    if (pillar(i + 1, j)) box(px + 1, pz, 1, BEAM, H, V, I, H - BEAM_DROP);
-    if (pillar(i, j + 1)) box(px, pz + 1, BEAM, 1, H, V, I, H - BEAM_DROP);
+    if (pillar(i + 1, j)) box(px + 1, pz, 1, BEAM - SEAM, H, V, I, H - BEAM_DROP);
+    if (pillar(i, j + 1)) box(px, pz + 1, BEAM - SEAM, 1, H, V, I, H - BEAM_DROP);
   }
   // grid corners: a wall-thick cap wherever a wall touches, otherwise now and then a freestanding column
   const closed = (cx, cz, side) => cx >= 0 && cz >= 0 && cx < W && cz < D && !(m[cx][cz] & side);
@@ -2034,7 +2037,7 @@ function buildMesh({ m, exit, key, long, arch, funnel }) {
     const wall = closed(x-1, z-1, 1) || closed(x-1, z-1, 2) || closed(x, z-1, 1) || closed(x, z-1, 8) || closed(x-1, z, 4) || closed(x-1, z, 2) || closed(x, z, 4) || closed(x, z, 8);
     const half = wall ? WALL_HALF : arch[x]?.[z] || arch[x-1]?.[z-1] ? 0 : Math.random() < 0.2 ? 0.35 : 0; // archway halls have their own pillars
     corners[x][z] = half;
-    if (half) { box(x*S, z*S, half, half, H, V, I); box(x*S, z*S, half + TRIM, half + TRIM, TRIM_H, V, I); }
+    if (half) { box(x*S, z*S, half - SEAM, half - SEAM, H, V, I); box(x*S, z*S, half + TRIM - SEAM, half + TRIM - SEAM, TRIM_H, V, I); }
   }
   return { V, I, solids, corners, door, doorN: [nx, nz], keySpot, fakeDoors, hideSpots };
 }
@@ -2346,7 +2349,7 @@ function droneStep() {
 }
 
 // Matrices
-const fovY = 78 * Math.PI / 180, near = 0.05, far = 100;
+const fovY = 78 * Math.PI / 180, near = 0.1, far = 100; // near at 10 cm (you never get closer to a wall than 25 cm): finer depth, less flicker
 // Unity's world is left-handed (facing +z, +x is on your right); proj[0] is negated to match, so text and layouts read the same in both.
 function viewProj(cam, yaw, pitch, aspect, roll = 0) {
   const f = [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)];

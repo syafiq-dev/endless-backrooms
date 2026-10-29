@@ -173,7 +173,7 @@ public class BackroomsGame : MonoBehaviour
         var cam = camGo.AddComponent<Camera>();
         cam.clearFlags = CameraClearFlags.SolidColor;
         cam.backgroundColor = fogColor;
-        cam.nearClipPlane = 0.05f;
+        cam.nearClipPlane = 0.1f; // you never get closer to a wall than 25 cm; a farther near plane means finer depth and less flicker
         cam.fieldOfView = 78f; // a bit wider than default, so rooms read bigger
         cam.farClipPlane = 100f; // fog hides everything past ~90m anyway
         camGo.AddComponent<AudioListener>();
@@ -226,6 +226,9 @@ public class BackroomsGame : MonoBehaviour
 
         float s = cellSize, H = wallHeight, propChance = 1 / Random.Range(Props.MinOdds, Props.MaxOdds); // new odds every run
         const float WallHalf = 0.2f, Trim = 0.02f, TrimHeight = 0.1f; // chunky 40 cm walls like the footage
+    // Corner caps and archway beams are drawn this much thinner than they really are, so their faces sit just behind the wall or
+    // pillar faces they line up with. Two faces in the same plane flicker (z-fighting).
+    const float Seam = 0.003f;
         void Wall(Vector3 a, Vector3 b, Vector3 n)
         {
             a += n * WallHalf; b += n * WallHalf;
@@ -424,8 +427,8 @@ public class BackroomsGame : MonoBehaviour
                 if (!Pillar(i, j)) continue;
                 float px = 2 * i, pz = 2 * j;
                 Box(px, pz, Arm, Beam, H); Box(px, pz, Beam, Arm, H);
-                if (Pillar(i + 1, j)) Box(px + 1, pz, 1, Beam, H, H - BeamDrop);
-                if (Pillar(i, j + 1)) Box(px, pz + 1, Beam, 1, H, H - BeamDrop);
+                if (Pillar(i + 1, j)) Box(px + 1, pz, 1, Beam - Seam, H, H - BeamDrop);
+                if (Pillar(i, j + 1)) Box(px, pz + 1, Beam - Seam, 1, H, H - BeamDrop);
             }
 
         bool Closed(int cx, int cz, int side) => cx >= 0 && cz >= 0 && cx < W && cz < D && (m[cx, cz] & side) == 0;
@@ -437,8 +440,8 @@ public class BackroomsGame : MonoBehaviour
                 bool inArch = x < W && z < D && f.arch[x, z] || x > 0 && z > 0 && f.arch[x - 1, z - 1]; // archway halls have their own pillars
                 float half = wall ? WallHalf : inArch ? 0 : Random.value < 0.2f ? 0.35f : 0;
                 if (half == 0) continue;
-                Box(x * s, z * s, half, half, H);
-                Box(x * s, z * s, half + Trim, half + Trim, TrimHeight);
+                Box(x * s, z * s, half - Seam, half - Seam, H);
+                Box(x * s, z * s, half + Trim - Seam, half + Trim - Seam, TrimHeight);
             }
 
         var mesh = new Mesh { name = "Maze" };
