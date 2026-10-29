@@ -16,6 +16,9 @@ public class BackroomsGame : MonoBehaviour
     public static int Look { get; private set; } = 2; // read by VhsCamera
     public static string PopupText; public static float PopupAt = -10; // VhsCamera shows PopupText mid-screen for a moment
     public static bool CanSearch, HasKey; // key-item prompt and KEY marker, drawn by VhsCamera
+    public struct HideSpot { public Vector3 cam, step; public float yaw; public int kind; } // yaw in degrees, facing out into the room
+    public static readonly List<HideSpot> HideSpots = new List<HideSpot>();
+    public static int NearSpot = -1; // the hiding spot you're standing at (VhsCamera shows HIDE)
     public static bool NightVision; // N or the NIGHT button (VhsCamera): infrared lamp + green NightShot picture, no battery
     public static int Tape; // run number, shown as TAPE n
     public static float Seed; // this run's _Seed, so Wetness() matches the shaders
@@ -24,7 +27,7 @@ public class BackroomsGame : MonoBehaviour
     public bool entityOn = true; // hidden switch for the entity (Entity.cs); off = no entity
     public static bool Started, Easy; // start screen (VhsCamera): NORMAL or EASY (no entity)
     public static void Begin(bool easy) { Easy = easy; Started = true; Time.timeScale = 1; }
-    public bool debugMode = true; // shows (DEBUG MODE) on the VHS stamp and each room's variant number on its floor
+    public bool debugMode = true; // shows (DEBUG MODE) and the share of rooms explored on the VHS stamp
 
     Material mat;
     GameObject level, player;
@@ -37,6 +40,7 @@ public class BackroomsGame : MonoBehaviour
 
     void Start()
     {
+        debugMode = PlayerPrefs.GetInt("debug", debugMode ? 1 : 0) == 1; // the start screen's hidden switch wins over the Inspector
         Application.targetFrameRate = 60;
         Look = look;
         mat = new Material(Shader.Find("Backrooms/Surface V" + look)); // lives in Resources/, so it ships in builds
@@ -54,7 +58,7 @@ public class BackroomsGame : MonoBehaviour
 
     void Update()
     {
-        Shader.SetGlobalFloat("_Debug", debugMode ? 1 : 0); // read by the surface shader and VhsCamera
+        Shader.SetGlobalFloat("_Debug", debugMode ? 1 : 0); // read by VhsCamera
         if (Keyboard.current != null && Keyboard.current.lKey.wasPressedThisFrame) NextLook();
         if (Keyboard.current != null && Keyboard.current.nKey.wasPressedThisFrame) ToggleNightVision();
         Shader.SetGlobalFloat("_NV", NightVision ? 1 : 0);
@@ -75,7 +79,11 @@ public class BackroomsGame : MonoBehaviour
         atFake = fakeNear;
         var kd = p - keySpot;
         CanSearch = locked && !HasKey && new Vector2(kd.x, kd.z).sqrMagnitude < 1.7f * 1.7f;
-        if (CanSearch && Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame) Search();
+        NearSpot = -1;
+        if (PlayerController.Hidden < 0)
+            for (int i = 0; i < HideSpots.Count; i++)
+                if (new Vector2(p.x - HideSpots[i].step.x, p.z - HideSpots[i].step.z).sqrMagnitude < 1f) NearSpot = i;
+        if (Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame) Act();
     }
 
     void NewRun()
@@ -111,6 +119,7 @@ public class BackroomsGame : MonoBehaviour
 
         if (entity) entity.NewRun(m);
         var cc = player.GetComponent<CharacterController>();
+        PlayerController.Hidden = -1;
         cc.enabled = false; // CharacterController ignores direct position writes while enabled
         player.transform.position = CellCenter(start);
         cc.enabled = true;
@@ -119,7 +128,15 @@ public class BackroomsGame : MonoBehaviour
     public void Caught() { Popup("TAPE ENDS"); NewRun(); } // the entity got you: the tape cuts and a new one starts
 
     public void NextLook() => look = look % 5 + 1;
-    public void Search() { if (!CanSearch) return; HasKey = true; CanSearch = false; Popup("GOT KEY"); }
+    public void ToggleDebug() { debugMode = !debugMode; PlayerPrefs.SetInt("debug", debugMode ? 1 : 0); Popup(debugMode ? "DEBUG ON" : "DEBUG OFF"); } // remembered on this device
+    // The action button (E): LEAVE a hiding spot, HIDE in the one you're at, or SEARCH the key item.
+    public void Act()
+    {
+        var pc = player.GetComponent<PlayerController>();
+        if (PlayerController.Hidden >= 0) pc.Leave();
+        else if (NearSpot >= 0) pc.Hide(NearSpot);
+        else if (CanSearch) { HasKey = true; CanSearch = false; Popup("GOT KEY"); }
+    }
 
     // Same noise as the Surface shaders' wetness(), so footsteps (PlayerController) know where the carpet is wet.
     static float Hash(float x, float y)
@@ -317,7 +334,7 @@ public class BackroomsGame : MonoBehaviour
         foreach (var part in Props.ExitDoor) PropPart(doorT, part);
         Shader.SetGlobalVector("_ExitPos", exitPos + en * 0.17f + Vector3.up * 2.45f); // the sign's red glow
 
-        fakeDoors.Clear();
+        fakeDoors.Clear(); HideSpots.Clear();
         for (int x = 0; x < W; x++)
             for (int z = 0; z < D; z++)
             {
@@ -341,6 +358,21 @@ public class BackroomsGame : MonoBehaviour
             foreach (var part in keyItem.parts) PropPart(kt, part);
             keySpot = at + kn * keyItem.depth;
         }
+
+        // Hiding spots: a locker or a desk against a wall of some of the empty rooms.
+        for (int x = 0; x < W; x++)
+            for (int z = 0; z < D; z++)
+            {
+                if (variant[x, z] != 0 || !Plain(x, z) || twin[x, z] > 0 || f.longHall[x, z] || m[x, z] == 15 || Random.value > Props.HideChance) continue;
+                var hWalls = ClosedSides(m[x, z]);
+                var hn = hWalls[Random.Range(0, hWalls.Count)];
+                int kind = Random.Range(0, Props.Hides.Length);
+                var hide = Props.Hides[kind];
+                var at = CellCenter((x, z)) - hn * (s / 2 - WallHalf);
+                var ht = Matrix4x4.TRS(at, Quaternion.LookRotation(hn), Vector3.one);
+                foreach (var part in hide.parts) PropPart(ht, part);
+                HideSpots.Add(new HideSpot { cam = ht.MultiplyPoint3x4(hide.cam), step = at + hn * hide.step, yaw = Quaternion.LookRotation(hn).eulerAngles.y, kind = kind });
+            }
 
         // Rare furniture. About half stand normally on the floor; the rest are wrong: tilted and sunk
         // into the carpet, hanging upside down from the ceiling, or half inside a wall.

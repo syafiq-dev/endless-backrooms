@@ -27,7 +27,7 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 .play b { width: 0; height: 0; border-style: solid; border-width: .32em 0 .32em .55em; border-color: transparent transparent transparent currentColor; }
 .stamp { font-size: 2.3em; line-height: 1; white-space: nowrap; }
 .play { font-size: 2em; }
-.stamp .debug { color: var(--debug); }
+.stamp .debug { color: var(--debug); font-size: 0.5em; }
 .tools { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; justify-content: flex-end; }
 .hud .hint { opacity: .8; transition: opacity 1.2s; font-size: .8em; }
 .hud .hint.gone { opacity: 0; }
@@ -39,6 +39,7 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 #start h1 { margin: 0; font-weight: 400; font-size: 1.5em; line-height: .9; color: var(--paper); letter-spacing: .06em; text-wrap: balance; }
 #start p { margin: 0; font-size: 22px; line-height: 1.15; }
 #start .modes { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+#dbghold { position: absolute; left: 50%; bottom: 0; width: 30vw; height: 14vh; transform: translateX(-50%); -webkit-touch-callout: none; user-select: none; touch-action: none; } /* invisible: hold 4 s to flip debug mode */
 #start button { font: inherit; font-size: 28px; color: var(--shade); background: var(--paper); border: 0; padding: 10px 22px; justify-self: center; cursor: pointer; letter-spacing: .08em; }
 #start button:focus-visible, #mute:focus-visible, #look:focus-visible, #nv:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 #look { margin-right: 8px; }
@@ -75,11 +76,12 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
     <div class="modes"><button id="go" type="button">NORMAL</button><button id="easy" type="button">EASY</button></div>
     <p id="how" style="font-size:18px;opacity:.75"></p>
   </div>
+  <div id="dbghold" aria-hidden="true"></div>
 </div>
 
 <script id="fs1" type="x-shader">#version 300 es
 precision highp float;
-uniform float _CellSize, _WallHeight, _FogDensity, _T, _Debug, _Seed, _NV;
+uniform float _CellSize, _WallHeight, _FogDensity, _T, _Seed, _NV;
 uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
@@ -107,24 +109,11 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 return 1.0 - closed * (1.0 - own) * (1.0 - smoothstep(0.0, 0.7, d)) * 0.35;
             }
 
-            // Debug: distance to a line segment, and a 7.0-segment digit (0.0-9.0) in a 1.0 x 2.0 box.
+            // Distance to a line segment (for the EXIT letters).
             float seg(vec2 p, vec2 a, vec2 b)
             {
                 vec2 pa = p - a, ba = b - a;
                 return length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0., 1.));
-            }
-
-            float digit(vec2 p, float d)
-            {
-                float k = 1e3;
-                if (d != 1.0 && d != 4.0) k = min(k, seg(p, vec2(0.0, 2.0), vec2(1.0, 2.0)));                    // top
-                if (d != 5.0 && d != 6.0) k = min(k, seg(p, vec2(1.0, 2.0), vec2(1.0, 1.0)));                    // upper right
-                if (d != 2.0) k = min(k, seg(p, vec2(1.0, 1.0), vec2(1.0, 0.0)));                              // lower right
-                if (d != 1.0 && d != 4.0 && d != 7.0) k = min(k, seg(p, vec2(0.0, 0.0), vec2(1.0, 0.0)));          // bottom
-                if (d == 0.0 || d == 2.0 || d == 6.0 || d == 8.0) k = min(k, seg(p, vec2(0.0, 0.0), vec2(0.0, 1.0))); // lower left
-                if (d != 1.0 && d != 2.0 && d != 3.0 && d != 7.0) k = min(k, seg(p, vec2(0.0, 1.0), vec2(0.0, 2.0))); // upper left
-                if (d != 0.0 && d != 1.0 && d != 7.0) k = min(k, seg(p, vec2(0.0, 1.0), vec2(1.0, 1.0)));          // middle
-                return 1.0 - smoothstep(0.14, 0.22, k);
             }
 
             // EXIT in 14.0 cm letters, q in metres from the middle of the sign.
@@ -324,11 +313,6 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 col = 1.0 - exp(-col * 1.5); // soft shoulder: washed-out highlights instead of hard clipping
                 col = pow(max(col, 0.0), vec3(0.95, 0.95, 1.35)); // camcorder grade: pull blue out, everything leans yellow-green
                 col = mix(col, vec3(1.0, 0.12, 0.08), letters); // on emergency power: ignores flicker and low power
-                if (_Debug > 0.0 && n.y > 0.5 && raw < 256.0) // variant number on the floor, just in front of the cell centre
-                {
-                    vec2 dp = vec2(local.x - s * 0.5, local.y - s * 0.5 - 0.6) / 0.45; // 0.45 x 0.9 m digit, reads upright facing +z
-                    col = mix(col, vec3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16.0)));
-                }
                 // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
                 // The entity's black aura: darkens whatever you see through the air around it (closest point of the view ray to its chest).
                 vec3 rd = wpos - _WorldSpaceCameraPos;
@@ -347,7 +331,7 @@ void main() {
 </script>
 <script id="fs2" type="x-shader">#version 300 es
 precision highp float;
-uniform float _CellSize, _WallHeight, _FogDensity, _T, _Debug, _Seed, _NV;
+uniform float _CellSize, _WallHeight, _FogDensity, _T, _Seed, _NV;
 uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
@@ -375,24 +359,11 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 return 1.0 - closed * (1.0 - own) * (1.0 - smoothstep(0.0, 0.7, d)) * 0.35;
             }
 
-            // Debug: distance to a line segment, and a 7.0-segment digit (0.0-9.0) in a 1.0 x 2.0 box.
+            // Distance to a line segment (for the EXIT letters).
             float seg(vec2 p, vec2 a, vec2 b)
             {
                 vec2 pa = p - a, ba = b - a;
                 return length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0., 1.));
-            }
-
-            float digit(vec2 p, float d)
-            {
-                float k = 1e3;
-                if (d != 1.0 && d != 4.0) k = min(k, seg(p, vec2(0.0, 2.0), vec2(1.0, 2.0)));                    // top
-                if (d != 5.0 && d != 6.0) k = min(k, seg(p, vec2(1.0, 2.0), vec2(1.0, 1.0)));                    // upper right
-                if (d != 2.0) k = min(k, seg(p, vec2(1.0, 1.0), vec2(1.0, 0.0)));                              // lower right
-                if (d != 1.0 && d != 4.0 && d != 7.0) k = min(k, seg(p, vec2(0.0, 0.0), vec2(1.0, 0.0)));          // bottom
-                if (d == 0.0 || d == 2.0 || d == 6.0 || d == 8.0) k = min(k, seg(p, vec2(0.0, 0.0), vec2(0.0, 1.0))); // lower left
-                if (d != 1.0 && d != 2.0 && d != 3.0 && d != 7.0) k = min(k, seg(p, vec2(0.0, 1.0), vec2(0.0, 2.0))); // upper left
-                if (d != 0.0 && d != 1.0 && d != 7.0) k = min(k, seg(p, vec2(0.0, 1.0), vec2(1.0, 1.0)));          // middle
-                return 1.0 - smoothstep(0.14, 0.22, k);
             }
 
             // EXIT in 14.0 cm letters, q in metres from the middle of the sign.
@@ -592,11 +563,6 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 col = 1.0 - exp(-col * 1.8); // brighter exposure, soft shoulder: washed-out highlights instead of hard clipping
                 col = pow(max(col, 0.0), vec3(0.9, 0.97, 1.25)); // camcorder grade: warm yellow rather than green
                 col = mix(col, vec3(1.0, 0.12, 0.08), letters); // on emergency power: ignores flicker and low power
-                if (_Debug > 0.0 && n.y > 0.5 && raw < 256.0) // variant number on the floor, just in front of the cell centre
-                {
-                    vec2 dp = vec2(local.x - s * 0.5, local.y - s * 0.5 - 0.6) / 0.45; // 0.45 x 0.9 m digit, reads upright facing +z
-                    col = mix(col, vec3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16.0)));
-                }
                 // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
                 // The entity's black aura: darkens whatever you see through the air around it (closest point of the view ray to its chest).
                 vec3 rd = wpos - _WorldSpaceCameraPos;
@@ -615,7 +581,7 @@ void main() {
 </script>
 <script id="fs3" type="x-shader">#version 300 es
 precision highp float;
-uniform float _CellSize, _WallHeight, _FogDensity, _T, _Debug, _Seed, _NV;
+uniform float _CellSize, _WallHeight, _FogDensity, _T, _Seed, _NV;
 uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
@@ -643,24 +609,11 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 return 1.0 - closed * (1.0 - own) * (1.0 - smoothstep(0.0, 0.7, d)) * 0.35;
             }
 
-            // Debug: distance to a line segment, and a 7.0-segment digit (0.0-9.0) in a 1.0 x 2.0 box.
+            // Distance to a line segment (for the EXIT letters).
             float seg(vec2 p, vec2 a, vec2 b)
             {
                 vec2 pa = p - a, ba = b - a;
                 return length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0., 1.));
-            }
-
-            float digit(vec2 p, float d)
-            {
-                float k = 1e3;
-                if (d != 1.0 && d != 4.0) k = min(k, seg(p, vec2(0.0, 2.0), vec2(1.0, 2.0)));                    // top
-                if (d != 5.0 && d != 6.0) k = min(k, seg(p, vec2(1.0, 2.0), vec2(1.0, 1.0)));                    // upper right
-                if (d != 2.0) k = min(k, seg(p, vec2(1.0, 1.0), vec2(1.0, 0.0)));                              // lower right
-                if (d != 1.0 && d != 4.0 && d != 7.0) k = min(k, seg(p, vec2(0.0, 0.0), vec2(1.0, 0.0)));          // bottom
-                if (d == 0.0 || d == 2.0 || d == 6.0 || d == 8.0) k = min(k, seg(p, vec2(0.0, 0.0), vec2(0.0, 1.0))); // lower left
-                if (d != 1.0 && d != 2.0 && d != 3.0 && d != 7.0) k = min(k, seg(p, vec2(0.0, 1.0), vec2(0.0, 2.0))); // upper left
-                if (d != 0.0 && d != 1.0 && d != 7.0) k = min(k, seg(p, vec2(0.0, 1.0), vec2(1.0, 1.0)));          // middle
-                return 1.0 - smoothstep(0.14, 0.22, k);
             }
 
             // EXIT in 14.0 cm letters, q in metres from the middle of the sign.
@@ -862,11 +815,6 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 float grey = dot(col, vec3(0.3, 0.59, 0.11));
                 col = mix(vec3(grey, grey, grey), col, 0.75); // muted colour
                 col = mix(col, vec3(1.0, 0.12, 0.08), letters); // on emergency power: ignores flicker and low power
-                if (_Debug > 0.0 && n.y > 0.5 && raw < 256.0) // variant number on the floor, just in front of the cell centre
-                {
-                    vec2 dp = vec2(local.x - s * 0.5, local.y - s * 0.5 - 0.6) / 0.45; // 0.45 x 0.9 m digit, reads upright facing +z
-                    col = mix(col, vec3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16.0)));
-                }
                 // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
                 // The entity's black aura: darkens whatever you see through the air around it (closest point of the view ray to its chest).
                 vec3 rd = wpos - _WorldSpaceCameraPos;
@@ -885,7 +833,7 @@ void main() {
 </script>
 <script id="fs4" type="x-shader">#version 300 es
 precision highp float;
-uniform float _CellSize, _WallHeight, _FogDensity, _T, _Debug, _Seed, _NV;
+uniform float _CellSize, _WallHeight, _FogDensity, _T, _Seed, _NV;
 uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
@@ -913,24 +861,11 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 return 1.0 - closed * (1.0 - own) * (1.0 - smoothstep(0.0, 0.7, d)) * 0.35;
             }
 
-            // Debug: distance to a line segment, and a 7.0-segment digit (0.0-9.0) in a 1.0 x 2.0 box.
+            // Distance to a line segment (for the EXIT letters).
             float seg(vec2 p, vec2 a, vec2 b)
             {
                 vec2 pa = p - a, ba = b - a;
                 return length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0., 1.));
-            }
-
-            float digit(vec2 p, float d)
-            {
-                float k = 1e3;
-                if (d != 1.0 && d != 4.0) k = min(k, seg(p, vec2(0.0, 2.0), vec2(1.0, 2.0)));                    // top
-                if (d != 5.0 && d != 6.0) k = min(k, seg(p, vec2(1.0, 2.0), vec2(1.0, 1.0)));                    // upper right
-                if (d != 2.0) k = min(k, seg(p, vec2(1.0, 1.0), vec2(1.0, 0.0)));                              // lower right
-                if (d != 1.0 && d != 4.0 && d != 7.0) k = min(k, seg(p, vec2(0.0, 0.0), vec2(1.0, 0.0)));          // bottom
-                if (d == 0.0 || d == 2.0 || d == 6.0 || d == 8.0) k = min(k, seg(p, vec2(0.0, 0.0), vec2(0.0, 1.0))); // lower left
-                if (d != 1.0 && d != 2.0 && d != 3.0 && d != 7.0) k = min(k, seg(p, vec2(0.0, 1.0), vec2(0.0, 2.0))); // upper left
-                if (d != 0.0 && d != 1.0 && d != 7.0) k = min(k, seg(p, vec2(0.0, 1.0), vec2(1.0, 1.0)));          // middle
-                return 1.0 - smoothstep(0.14, 0.22, k);
             }
 
             // EXIT in 14.0 cm letters, q in metres from the middle of the sign.
@@ -1130,11 +1065,6 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 col = 1.0 - exp(-col * 1.4); // darker, deeper shadows: washed-out highlights instead of hard clipping
                 col = pow(max(col, 0.0), vec3(0.9, 1.05, 1.6)); // orange grade, blue pulled right out
                 col = mix(col, vec3(1.0, 0.12, 0.08), letters); // on emergency power: ignores flicker and low power
-                if (_Debug > 0.0 && n.y > 0.5 && raw < 256.0) // variant number on the floor, just in front of the cell centre
-                {
-                    vec2 dp = vec2(local.x - s * 0.5, local.y - s * 0.5 - 0.6) / 0.45; // 0.45 x 0.9 m digit, reads upright facing +z
-                    col = mix(col, vec3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16.0)));
-                }
                 // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
                 // The entity's black aura: darkens whatever you see through the air around it (closest point of the view ray to its chest).
                 vec3 rd = wpos - _WorldSpaceCameraPos;
@@ -1153,7 +1083,7 @@ void main() {
 </script>
 <script id="fs5" type="x-shader">#version 300 es
 precision highp float;
-uniform float _CellSize, _WallHeight, _FogDensity, _T, _Debug, _Seed, _NV;
+uniform float _CellSize, _WallHeight, _FogDensity, _T, _Seed, _NV;
 uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
@@ -1181,24 +1111,11 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 return 1.0 - closed * (1.0 - own) * (1.0 - smoothstep(0.0, 0.7, d)) * 0.35;
             }
 
-            // Debug: distance to a line segment, and a 7.0-segment digit (0.0-9.0) in a 1.0 x 2.0 box.
+            // Distance to a line segment (for the EXIT letters).
             float seg(vec2 p, vec2 a, vec2 b)
             {
                 vec2 pa = p - a, ba = b - a;
                 return length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0., 1.));
-            }
-
-            float digit(vec2 p, float d)
-            {
-                float k = 1e3;
-                if (d != 1.0 && d != 4.0) k = min(k, seg(p, vec2(0.0, 2.0), vec2(1.0, 2.0)));                    // top
-                if (d != 5.0 && d != 6.0) k = min(k, seg(p, vec2(1.0, 2.0), vec2(1.0, 1.0)));                    // upper right
-                if (d != 2.0) k = min(k, seg(p, vec2(1.0, 1.0), vec2(1.0, 0.0)));                              // lower right
-                if (d != 1.0 && d != 4.0 && d != 7.0) k = min(k, seg(p, vec2(0.0, 0.0), vec2(1.0, 0.0)));          // bottom
-                if (d == 0.0 || d == 2.0 || d == 6.0 || d == 8.0) k = min(k, seg(p, vec2(0.0, 0.0), vec2(0.0, 1.0))); // lower left
-                if (d != 1.0 && d != 2.0 && d != 3.0 && d != 7.0) k = min(k, seg(p, vec2(0.0, 1.0), vec2(0.0, 2.0))); // upper left
-                if (d != 0.0 && d != 1.0 && d != 7.0) k = min(k, seg(p, vec2(0.0, 1.0), vec2(1.0, 1.0)));          // middle
-                return 1.0 - smoothstep(0.14, 0.22, k);
             }
 
             // EXIT in 14.0 cm letters, q in metres from the middle of the sign.
@@ -1399,11 +1316,6 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 col = pow(max(col, 0.0), vec3(0.95, 1.0, 1.2));
                 col = col * 0.78 + vec3(0.12, 0.08, 0.12); // faded: lifted blacks with a magenta tint
                 col = mix(col, vec3(1.0, 0.12, 0.08), letters); // on emergency power: ignores flicker and low power
-                if (_Debug > 0.0 && n.y > 0.5 && raw < 256.0) // variant number on the floor, just in front of the cell centre
-                {
-                    vec2 dp = vec2(local.x - s * 0.5, local.y - s * 0.5 - 0.6) / 0.45; // 0.45 x 0.9 m digit, reads upright facing +z
-                    col = mix(col, vec3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16.0)));
-                }
                 // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
                 // The entity's black aura: darkens whatever you see through the air around it (closest point of the view ray to its chest).
                 vec3 rd = wpos - _WorldSpaceCameraPos;
@@ -1422,7 +1334,7 @@ void main() {
 </script>
 <script id="vhsfs1" type="x-shader">#version 300 es
 precision highp float;
-uniform sampler2D _MainTex; uniform vec2 _SrcSize; uniform float _T, _NV;
+uniform sampler2D _MainTex; uniform vec2 _SrcSize; uniform float _T, _NV, _Danger;
 in vec2 uv0; out vec4 o;
 // VHS-BEGIN (build.py ports everything down to VHS-END for the browser version)
             float vhash(vec2 p)
@@ -1449,7 +1361,12 @@ in vec2 uv0; out vec4 o;
                 // Head-switching noise along the bottom edge.
                 float head = smoothstep(0.03, 0.0, uv.y);
                 shift += head * (0.015 + 0.02 * vhash(vec2(row, t)));
+                shift += _NV * (jitter - 0.5) * px.x * 2.5; // NightShot's cranked gain: shakier lines
                 uv.x += shift;
+                // The entity close by: lines tear sideways and a fast band rolls through.
+                float tear = _Danger * _Danger;
+                float fast = smoothstep(0.1, 0.0, abs(uv.y - fract(-t * 0.6)));
+                uv.x += (vhash(vec2(row, floor(t * 24.0) + 7.0)) - 0.5) * px.x * 8.0 * tear + fast * tear * (vhash(vec2(row, floor(t * 50.0))) - 0.5) * 0.06;
 
                 // Luma: three taps, fairly sharp.
                 float y = luma(tap(uv)) * 0.5 + luma(tap(uv + vec2(px.x, 0.0))) * 0.25 + luma(tap(uv - vec2(px.x, 0.0))) * 0.25;
@@ -1459,6 +1376,9 @@ in vec2 uv0; out vec4 o;
                          + chroma(tap(uv + vec2(px.x * 7.0, 0.0)));
                 c *= 0.2 * 1.15; // average, slightly oversaturated
                 vec3 col = vec3(y + 0.956 * c.x + 0.621 * c.y, y - 0.272 * c.x - 0.647 * c.y, y - 1.106 * c.x + 1.703 * c.y);
+                // ...and the colour slips off the shapes.
+                col.r = mix(col.r, tap(uv + vec2(px.x * 7.0, 0.0)).r, tear * 0.7);
+                col.b = mix(col.b, tap(uv - vec2(px.x * 5.0, 0.0)).b, tear * 0.7);
 
                 // Bloom: bright spots glow outward (cheap 8.0-tap ring).
                 vec3 glow = tap(uv + vec2(px.x * 6.0, 0.0)) + tap(uv - vec2(px.x * 6.0, 0.0)) + tap(uv + vec2(0.0, px.y * 6.0)) + tap(uv - vec2(0.0, px.y * 6.0))
@@ -1468,12 +1388,18 @@ in vec2 uv0; out vec4 o;
                 // Tape: milky blacks, snow, scanlines, brighter noise inside the tracking band.
                 col = col * 0.9 + 0.05;
                 float snow = vhash(uv * _SrcSize + fract(t) * 911.0);
-                col += (snow - 0.5) * (0.07 + band * 0.15 + head * 0.4);
+                col += (snow - 0.5) * (0.07 + band * 0.15 + head * 0.4 + tear * 0.3);
+                col *= 1.0 - tear * step(0.93, vhash(vec2(floor(t * 12.0), 3.0))) * 0.5; // the picture dips now and then
                 col *= 0.93 + 0.07 * sin(uv.y * _SrcSize.y * 3.14159);
 
-                // Night vision: grayscale, gain pushed up, extra grain like a cheap camcorder's NightShot.
+                // Night vision: grayscale, gain pushed up, like a cheap camcorder's NightShot.
+                // Like an old tape at night: crawling with static, coarse grain, streaky lines, white dropouts, a slow flicker.
                 float nvl = 1.0 - exp(-luma(col) * 1.8);
-                float nvg = nvl + (snow - 0.5) * 0.12;
+                float grain = vhash(floor(uv * _SrcSize * 0.5) + fract(t * 1.7) * 517.0) - 0.5; // 2.0 px clumps
+                float streak = vhash(vec2(row, floor(t * 24.0))) - 0.5; // whole lines a bit brighter or darker
+                float drop = step(0.9993, vhash(vec2(floor(uv.x * _SrcSize.x / 6.0), row) + floor(t * 30.0))); // white dropout dashes
+                float nvg = nvl * (0.92 + 0.08 * sin(t * 37.0)) + (snow - 0.5) * 0.16 + grain * 0.12 + streak * 0.06 + drop * 0.7;
+                nvg = nvg * 0.85 + 0.06; // milky blacks
                 col = mix(col, vec3(nvg, nvg, nvg), _NV);
 
                 // Vignette, a bit stronger in the corners like a cheap camcorder lens.
@@ -1486,7 +1412,7 @@ void main() { o = vec4(vhs(uv0, _T), 1); }
 </script>
 <script id="vhsfs2" type="x-shader">#version 300 es
 precision highp float;
-uniform sampler2D _MainTex; uniform vec2 _SrcSize; uniform float _T, _NV;
+uniform sampler2D _MainTex; uniform vec2 _SrcSize; uniform float _T, _NV, _Danger;
 in vec2 uv0; out vec4 o;
 // VHS-BEGIN (build.py ports everything down to VHS-END for the browser version)
             float vhash(vec2 p)
@@ -1513,7 +1439,12 @@ in vec2 uv0; out vec4 o;
                 // Head-switching noise along the bottom edge.
                 float head = smoothstep(0.03, 0.0, uv.y);
                 shift += head * (0.015 + 0.02 * vhash(vec2(row, t)));
+                shift += _NV * (jitter - 0.5) * px.x * 2.5; // NightShot's cranked gain: shakier lines
                 uv.x += shift;
+                // The entity close by: lines tear sideways and a fast band rolls through.
+                float tear = _Danger * _Danger;
+                float fast = smoothstep(0.1, 0.0, abs(uv.y - fract(-t * 0.6)));
+                uv.x += (vhash(vec2(row, floor(t * 24.0) + 7.0)) - 0.5) * px.x * 8.0 * tear + fast * tear * (vhash(vec2(row, floor(t * 50.0))) - 0.5) * 0.06;
 
                 // Luma: fairly sharp, with a soft lens falloff (wide taps here read as a double image).
                 float y = luma(tap(uv)) * 0.5 + (luma(tap(uv + vec2(px.x, 0.0))) + luma(tap(uv - vec2(px.x, 0.0)))) * 0.2
@@ -1524,6 +1455,9 @@ in vec2 uv0; out vec4 o;
                          + chroma(tap(uv + vec2(px.x * 3.0, 0.0)));
                 c *= 0.2 * 1.15; // average, slightly oversaturated
                 vec3 col = vec3(y + 0.956 * c.x + 0.621 * c.y, y - 0.272 * c.x - 0.647 * c.y, y - 1.106 * c.x + 1.703 * c.y);
+                // ...and the colour slips off the shapes.
+                col.r = mix(col.r, tap(uv + vec2(px.x * 7.0, 0.0)).r, tear * 0.7);
+                col.b = mix(col.b, tap(uv - vec2(px.x * 5.0, 0.0)).b, tear * 0.7);
 
                 // Bloom: bright spots glow outward. Taps stay close so lights soften instead of echoing.
                 vec3 glow = tap(uv + vec2(px.x * 4.0, 0.0)) + tap(uv - vec2(px.x * 4.0, 0.0)) + tap(uv + vec2(0.0, px.y * 4.0)) + tap(uv - vec2(0.0, px.y * 4.0))
@@ -1534,12 +1468,18 @@ in vec2 uv0; out vec4 o;
                 col = col * 0.86 + 0.08; // hazier
                 col *= vec3(1.04, 1.0, 0.92); // warm cast
                 float snow = vhash(uv * _SrcSize + fract(t) * 911.0);
-                col += (snow - 0.5) * (0.07 + band * 0.15 + head * 0.4);
+                col += (snow - 0.5) * (0.07 + band * 0.15 + head * 0.4 + tear * 0.3);
+                col *= 1.0 - tear * step(0.93, vhash(vec2(floor(t * 12.0), 3.0))) * 0.5; // the picture dips now and then
                 col *= 0.96 + 0.04 * sin(uv.y * _SrcSize.y * 3.14159);
 
-                // Night vision: grayscale, gain pushed up, extra grain like a cheap camcorder's NightShot.
+                // Night vision: grayscale, gain pushed up, like a cheap camcorder's NightShot.
+                // Like an old tape at night: crawling with static, coarse grain, streaky lines, white dropouts, a slow flicker.
                 float nvl = 1.0 - exp(-luma(col) * 1.8);
-                float nvg = nvl + (snow - 0.5) * 0.12;
+                float grain = vhash(floor(uv * _SrcSize * 0.5) + fract(t * 1.7) * 517.0) - 0.5; // 2.0 px clumps
+                float streak = vhash(vec2(row, floor(t * 24.0))) - 0.5; // whole lines a bit brighter or darker
+                float drop = step(0.9993, vhash(vec2(floor(uv.x * _SrcSize.x / 6.0), row) + floor(t * 30.0))); // white dropout dashes
+                float nvg = nvl * (0.92 + 0.08 * sin(t * 37.0)) + (snow - 0.5) * 0.16 + grain * 0.12 + streak * 0.06 + drop * 0.7;
+                nvg = nvg * 0.85 + 0.06; // milky blacks
                 col = mix(col, vec3(nvg, nvg, nvg), _NV);
 
                 // Vignette, a bit stronger in the corners like a cheap camcorder lens.
@@ -1552,7 +1492,7 @@ void main() { o = vec4(vhs(uv0, _T), 1); }
 </script>
 <script id="vhsfs3" type="x-shader">#version 300 es
 precision highp float;
-uniform sampler2D _MainTex; uniform vec2 _SrcSize; uniform float _T, _NV;
+uniform sampler2D _MainTex; uniform vec2 _SrcSize; uniform float _T, _NV, _Danger;
 in vec2 uv0; out vec4 o;
 // VHS-BEGIN (build.py ports everything down to VHS-END for the browser version)
             float vhash(vec2 p)
@@ -1579,7 +1519,12 @@ in vec2 uv0; out vec4 o;
                 // Head-switching noise along the bottom edge.
                 float head = smoothstep(0.03, 0.0, uv.y);
                 shift += head * (0.015 + 0.02 * vhash(vec2(row, t)));
+                shift += _NV * (jitter - 0.5) * px.x * 2.5; // NightShot's cranked gain: shakier lines
                 uv.x += shift;
+                // The entity close by: lines tear sideways and a fast band rolls through.
+                float tear = _Danger * _Danger;
+                float fast = smoothstep(0.1, 0.0, abs(uv.y - fract(-t * 0.6)));
+                uv.x += (vhash(vec2(row, floor(t * 24.0) + 7.0)) - 0.5) * px.x * 8.0 * tear + fast * tear * (vhash(vec2(row, floor(t * 50.0))) - 0.5) * 0.06;
 
                 // Luma: three taps, fairly sharp.
                 float y = luma(tap(uv)) * 0.5 + luma(tap(uv + vec2(px.x, 0.0))) * 0.25 + luma(tap(uv - vec2(px.x, 0.0))) * 0.25;
@@ -1588,6 +1533,9 @@ in vec2 uv0; out vec4 o;
                          + chroma(tap(uv - vec2(px.x * 1.0, 0.0))) + chroma(tap(uv + vec2(px.x * 3.0, 0.0)));
                 c *= 0.2; // Hi8: much less colour smear
                 vec3 col = vec3(y + 0.956 * c.x + 0.621 * c.y, y - 0.272 * c.x - 0.647 * c.y, y - 1.106 * c.x + 1.703 * c.y);
+                // ...and the colour slips off the shapes.
+                col.r = mix(col.r, tap(uv + vec2(px.x * 7.0, 0.0)).r, tear * 0.7);
+                col.b = mix(col.b, tap(uv - vec2(px.x * 5.0, 0.0)).b, tear * 0.7);
 
                 // Bloom: bright spots glow outward (cheap 8.0-tap ring).
                 vec3 glow = tap(uv + vec2(px.x * 6.0, 0.0)) + tap(uv - vec2(px.x * 6.0, 0.0)) + tap(uv + vec2(0.0, px.y * 6.0)) + tap(uv - vec2(0.0, px.y * 6.0))
@@ -1597,12 +1545,18 @@ in vec2 uv0; out vec4 o;
                 // Tape: milky blacks, snow, scanlines, brighter noise inside the tracking band.
                 col = col * 0.96 + 0.02;
                 float snow = vhash(uv * _SrcSize + fract(t) * 911.0);
-                col += (snow - 0.5) * (0.04 + band * 0.08 + head * 0.3);
+                col += (snow - 0.5) * (0.04 + band * 0.08 + head * 0.3 + tear * 0.3);
+                col *= 1.0 - tear * step(0.93, vhash(vec2(floor(t * 12.0), 3.0))) * 0.5; // the picture dips now and then
                 col *= 0.97 + 0.03 * sin(uv.y * _SrcSize.y * 3.14159);
 
-                // Night vision: grayscale, gain pushed up, extra grain like a cheap camcorder's NightShot.
+                // Night vision: grayscale, gain pushed up, like a cheap camcorder's NightShot.
+                // Like an old tape at night: crawling with static, coarse grain, streaky lines, white dropouts, a slow flicker.
                 float nvl = 1.0 - exp(-luma(col) * 1.8);
-                float nvg = nvl + (snow - 0.5) * 0.12;
+                float grain = vhash(floor(uv * _SrcSize * 0.5) + fract(t * 1.7) * 517.0) - 0.5; // 2.0 px clumps
+                float streak = vhash(vec2(row, floor(t * 24.0))) - 0.5; // whole lines a bit brighter or darker
+                float drop = step(0.9993, vhash(vec2(floor(uv.x * _SrcSize.x / 6.0), row) + floor(t * 30.0))); // white dropout dashes
+                float nvg = nvl * (0.92 + 0.08 * sin(t * 37.0)) + (snow - 0.5) * 0.16 + grain * 0.12 + streak * 0.06 + drop * 0.7;
+                nvg = nvg * 0.85 + 0.06; // milky blacks
                 col = mix(col, vec3(nvg, nvg, nvg), _NV);
 
                 // Vignette, a bit stronger in the corners like a cheap camcorder lens.
@@ -1615,7 +1569,7 @@ void main() { o = vec4(vhs(uv0, _T), 1); }
 </script>
 <script id="vhsfs4" type="x-shader">#version 300 es
 precision highp float;
-uniform sampler2D _MainTex; uniform vec2 _SrcSize; uniform float _T, _NV;
+uniform sampler2D _MainTex; uniform vec2 _SrcSize; uniform float _T, _NV, _Danger;
 in vec2 uv0; out vec4 o;
 // VHS-BEGIN (build.py ports everything down to VHS-END for the browser version)
             float vhash(vec2 p)
@@ -1642,7 +1596,12 @@ in vec2 uv0; out vec4 o;
                 // Head-switching noise along the bottom edge.
                 float head = smoothstep(0.03, 0.0, uv.y);
                 shift += head * (0.015 + 0.02 * vhash(vec2(row, t)));
+                shift += _NV * (jitter - 0.5) * px.x * 2.5; // NightShot's cranked gain: shakier lines
                 uv.x += shift;
+                // The entity close by: lines tear sideways and a fast band rolls through.
+                float tear = _Danger * _Danger;
+                float fast = smoothstep(0.1, 0.0, abs(uv.y - fract(-t * 0.6)));
+                uv.x += (vhash(vec2(row, floor(t * 24.0) + 7.0)) - 0.5) * px.x * 8.0 * tear + fast * tear * (vhash(vec2(row, floor(t * 50.0))) - 0.5) * 0.06;
 
                 // Luma: three taps, fairly sharp.
                 float y = luma(tap(uv)) * 0.5 + (luma(tap(uv + vec2(px.x, 0.0))) + luma(tap(uv - vec2(px.x, 0.0)))) * 0.2
@@ -1653,6 +1612,9 @@ in vec2 uv0; out vec4 o;
                          + chroma(tap(uv + vec2(px.x * 3.0, 0.0)));
                 c *= 0.2 * 1.15; // average, slightly oversaturated
                 vec3 col = vec3(y + 0.956 * c.x + 0.621 * c.y, y - 0.272 * c.x - 0.647 * c.y, y - 1.106 * c.x + 1.703 * c.y);
+                // ...and the colour slips off the shapes.
+                col.r = mix(col.r, tap(uv + vec2(px.x * 7.0, 0.0)).r, tear * 0.7);
+                col.b = mix(col.b, tap(uv - vec2(px.x * 5.0, 0.0)).b, tear * 0.7);
 
                 // Bloom: bright spots glow outward (cheap 8.0-tap ring).
                 vec3 glow = tap(uv + vec2(px.x * 4.0, 0.0)) + tap(uv - vec2(px.x * 4.0, 0.0)) + tap(uv + vec2(0.0, px.y * 4.0)) + tap(uv - vec2(0.0, px.y * 4.0))
@@ -1663,12 +1625,18 @@ in vec2 uv0; out vec4 o;
                 col = col * 0.86 + 0.08; // hazier
                 col *= vec3(1.04, 1.0, 0.92); // warm cast
                 float snow = vhash(uv * _SrcSize + fract(t) * 911.0);
-                col += (snow - 0.5) * (0.07 + band * 0.15 + head * 0.4);
+                col += (snow - 0.5) * (0.07 + band * 0.15 + head * 0.4 + tear * 0.3);
+                col *= 1.0 - tear * step(0.93, vhash(vec2(floor(t * 12.0), 3.0))) * 0.5; // the picture dips now and then
                 col *= 0.96 + 0.04 * sin(uv.y * _SrcSize.y * 3.14159);
 
-                // Night vision: grayscale, gain pushed up, extra grain like a cheap camcorder's NightShot.
+                // Night vision: grayscale, gain pushed up, like a cheap camcorder's NightShot.
+                // Like an old tape at night: crawling with static, coarse grain, streaky lines, white dropouts, a slow flicker.
                 float nvl = 1.0 - exp(-luma(col) * 1.8);
-                float nvg = nvl + (snow - 0.5) * 0.12;
+                float grain = vhash(floor(uv * _SrcSize * 0.5) + fract(t * 1.7) * 517.0) - 0.5; // 2.0 px clumps
+                float streak = vhash(vec2(row, floor(t * 24.0))) - 0.5; // whole lines a bit brighter or darker
+                float drop = step(0.9993, vhash(vec2(floor(uv.x * _SrcSize.x / 6.0), row) + floor(t * 30.0))); // white dropout dashes
+                float nvg = nvl * (0.92 + 0.08 * sin(t * 37.0)) + (snow - 0.5) * 0.16 + grain * 0.12 + streak * 0.06 + drop * 0.7;
+                nvg = nvg * 0.85 + 0.06; // milky blacks
                 col = mix(col, vec3(nvg, nvg, nvg), _NV);
 
                 // Vignette, a bit stronger in the corners like a cheap camcorder lens.
@@ -1681,7 +1649,7 @@ void main() { o = vec4(vhs(uv0, _T), 1); }
 </script>
 <script id="vhsfs5" type="x-shader">#version 300 es
 precision highp float;
-uniform sampler2D _MainTex; uniform vec2 _SrcSize; uniform float _T, _NV;
+uniform sampler2D _MainTex; uniform vec2 _SrcSize; uniform float _T, _NV, _Danger;
 in vec2 uv0; out vec4 o;
 // VHS-BEGIN (build.py ports everything down to VHS-END for the browser version)
             float vhash(vec2 p)
@@ -1708,7 +1676,12 @@ in vec2 uv0; out vec4 o;
                 // Head-switching noise along the bottom edge.
                 float head = smoothstep(0.03, 0.0, uv.y);
                 shift += head * (0.015 + 0.02 * vhash(vec2(row, t)));
+                shift += _NV * (jitter - 0.5) * px.x * 2.5; // NightShot's cranked gain: shakier lines
                 uv.x += shift;
+                // The entity close by: lines tear sideways and a fast band rolls through.
+                float tear = _Danger * _Danger;
+                float fast = smoothstep(0.1, 0.0, abs(uv.y - fract(-t * 0.6)));
+                uv.x += (vhash(vec2(row, floor(t * 24.0) + 7.0)) - 0.5) * px.x * 8.0 * tear + fast * tear * (vhash(vec2(row, floor(t * 50.0))) - 0.5) * 0.06;
 
                 // Luma: three taps, fairly sharp.
                 float y = luma(tap(uv)) * 0.5 + luma(tap(uv + vec2(px.x, 0.0))) * 0.25 + luma(tap(uv - vec2(px.x, 0.0))) * 0.25;
@@ -1719,6 +1692,9 @@ in vec2 uv0; out vec4 o;
                 c *= 0.2 * 0.8; // worn tape: weak colour
                 c.y -= 0.02; // drift toward teal
                 vec3 col = vec3(y + 0.956 * c.x + 0.621 * c.y, y - 0.272 * c.x - 0.647 * c.y, y - 1.106 * c.x + 1.703 * c.y);
+                // ...and the colour slips off the shapes.
+                col.r = mix(col.r, tap(uv + vec2(px.x * 7.0, 0.0)).r, tear * 0.7);
+                col.b = mix(col.b, tap(uv - vec2(px.x * 5.0, 0.0)).b, tear * 0.7);
 
                 // Bloom: bright spots glow outward (cheap 8.0-tap ring).
                 vec3 glow = tap(uv + vec2(px.x * 6.0, 0.0)) + tap(uv - vec2(px.x * 6.0, 0.0)) + tap(uv + vec2(0.0, px.y * 6.0)) + tap(uv - vec2(0.0, px.y * 6.0))
@@ -1728,12 +1704,18 @@ in vec2 uv0; out vec4 o;
                 // Tape: milky blacks, snow, scanlines, brighter noise inside the tracking band.
                 col = col * 0.9 + 0.05;
                 float snow = vhash(uv * _SrcSize + fract(t) * 911.0);
-                col += (snow - 0.5) * (0.11 + band * 0.25 + head * 0.5);
+                col += (snow - 0.5) * (0.11 + band * 0.25 + head * 0.5 + tear * 0.3);
+                col *= 1.0 - tear * step(0.93, vhash(vec2(floor(t * 12.0), 3.0))) * 0.5; // the picture dips now and then
                 col *= 0.93 + 0.07 * sin(uv.y * _SrcSize.y * 3.14159);
 
-                // Night vision: grayscale, gain pushed up, extra grain like a cheap camcorder's NightShot.
+                // Night vision: grayscale, gain pushed up, like a cheap camcorder's NightShot.
+                // Like an old tape at night: crawling with static, coarse grain, streaky lines, white dropouts, a slow flicker.
                 float nvl = 1.0 - exp(-luma(col) * 1.8);
-                float nvg = nvl + (snow - 0.5) * 0.12;
+                float grain = vhash(floor(uv * _SrcSize * 0.5) + fract(t * 1.7) * 517.0) - 0.5; // 2.0 px clumps
+                float streak = vhash(vec2(row, floor(t * 24.0))) - 0.5; // whole lines a bit brighter or darker
+                float drop = step(0.9993, vhash(vec2(floor(uv.x * _SrcSize.x / 6.0), row) + floor(t * 30.0))); // white dropout dashes
+                float nvg = nvl * (0.92 + 0.08 * sin(t * 37.0)) + (snow - 0.5) * 0.16 + grain * 0.12 + streak * 0.06 + drop * 0.7;
+                nvg = nvg * 0.85 + 0.06; // milky blacks
                 col = mix(col, vec3(nvg, nvg, nvg), _NV);
 
                 // Vignette, a bit stronger in the corners like a cheap camcorder lens.
@@ -1759,8 +1741,9 @@ const SIZE = 24, GROW = 0, MAX_SIZE = 32; // 24x24 rooms (~20 min runs); GROW > 
 let W = SIZE, D = SIZE;
 const S = 6, H = 3.4, LOOP = 0.3, FOG = [0.50, 0.48, 0.20], R = 0.25;
 const WALL_HALF = 0.2, TRIM = 0.02, TRIM_H = 0.1;
-const DEBUG = true;
-const ENTITY = true; // hidden switch: false = no entity (Entity.cs: BackroomsGame.entityOn) // debug/dev mode: (DEBUG MODE) on the stamp + room variant numbers on the floors
+let DEBUG = true; // hold the bottom middle of the start screen for 4 s to flip it (remembered on this device)
+try { const v = localStorage.getItem('debug'); if (v !== null) DEBUG = v === '1'; } catch {}
+const ENTITY = true; // hidden switch: false = no entity (Entity.cs: BackroomsGame.entityOn) // debug/dev mode (DEBUG): (DEBUG MODE) and rooms explored on the stamp
 // Room interiors from RoomVariants.cs: [centre x, centre z, half x, half z] around the cell centre, for 4 m cells.
 const VARIANTS = [
   [],                                                                                 // 0 Empty
@@ -1808,6 +1791,16 @@ const KEY_DRAWER = [[0, 0.45, 0.25, 0.3, 0.45, 0.23, 0], [0, 0.3, 0.485, 0.28, 0
   [0, 0.15, 0.5, 0.07, 0.012, 0.015, 1], [0, 0.45, 0.5, 0.07, 0.012, 0.015, 1], [0, 0.75, 0.5, 0.07, 0.012, 0.015, 1]];
 // parts, distance of the centre from the wall, half width, half depth
 const KEY_ITEMS = [[KEY_DESK, 0.42, 0.72, 0.38], [KEY_DRAWER, 0.25, 0.3, 0.23], [KEY_BOX, 0.35, 0.3, 0.28]]; // office desk, drawer unit, cardboard box
+// Hiding spots (Props.Locker / HideDesk): a metal locker to stand in, or an office desk to crawl under, against a wall of an
+// empty room. Step up to one and HIDE (E). The locker has an inside (dark panels, a slatted vent at eye height) that only
+// shows from in there. If the entity didn't see you go in, it comes to the room, waits, and gives up.
+const HIDE_CHANCE = 0.08; // per empty room with a wall
+const LOCKER = [[0, 0.95, 0.25, 0.3, 0.95, 0.25, 1], [0.22, 1.0, 0.515, 0.012, 0.06, 0.015, 4],
+  ...[1.25, 1.34, 1.43, 1.52, 1.61, 1.7].map(y => [0, y, 0.505, 0.285, 0.022, 0.006, 4]), // vent slats (gaps between them from inside)
+  [0, 0.6, 0.49, 0.29, 0.6, 0.004, 4], [0, 1.83, 0.49, 0.29, 0.07, 0.004, 4], // inside of the door, around the vent
+  [-0.29, 0.95, 0.25, 0.004, 0.95, 0.25, 4], [0.29, 0.95, 0.25, 0.004, 0.95, 0.25, 4], [0, 1.89, 0.25, 0.3, 0.004, 0.25, 4], [0, 0.95, 0.01, 0.3, 0.95, 0.004, 4]];
+// parts, half width, half depth, centre from the wall, camera [x, y, z] when hiding, where you step out to
+const HIDES = [[LOCKER, 0.3, 0.25, 0.25, [0, 1.5, 0.22], 1.0], [KEY_DESK, 0.72, 0.38, 0.42, [0.2, 0.45, 0.42], 1.3]];
 const PROP_BIG = 0.25; // share of random furniture that comes out slightly too big
 const PROP_FOOT = [0.25, 0.2, 0.65, 0.35, 0.1, 0.75, 0.45, 0.45]; // reach from the item's centre, for collisions
 // 3x3 rotations (row-major) for placing props
@@ -2012,6 +2005,16 @@ function buildMesh({ m, exit, key, long, arch, funnel }) {
     keySpot = [at[0] + kx*depth, at[2] + kz*depth];
     solids[key[0]][key[1]].push([keySpot[0], keySpot[1], kx ? d2 : w, kx ? w : d2]);
   }
+  const hideSpots = [];
+  for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) {
+    const p = plan[x][z];
+    if (p.variant || p.prop || p.fake || p.twin || arch[x][z] || long[x][z] || m[x][z] === 15 || (x === exit[0] && z === exit[1]) || (key && x === key[0] && z === key[1]) || Math.random() > HIDE_CHANCE) continue;
+    const hw = closedSides(m[x][z]), [hx, , hz] = hw[rnd(hw.length)], kind = rnd(HIDES.length), [parts, w, d2, depth, cam, out] = HIDES[kind];
+    const at = [(x+.5)*S - hx*dd, 0, (z+.5)*S - hz*dd], R = [hz,0,hx, 0,1,0, -hx,0,hz], c = mv(R, cam);
+    for (const pt of parts) part(at, R, pt);
+    solids[x][z].push([at[0] + hx*depth, at[2] + hz*depth, hx ? d2 : w, hx ? w : d2]);
+    hideSpots.push({ kind, cam: [at[0] + c[0], c[1], at[2] + c[2]], out: [at[0] + hx*out, at[2] + hz*out], yaw: Math.atan2(hx, hz) });
+  }
   o = 15;
   // Archway halls: + pillars on a 2 m grid, joined by low beams. A point gets a pillar only when every room it touches is
   // part of the archway hall, so the edges of the hall stay clear.
@@ -2033,7 +2036,7 @@ function buildMesh({ m, exit, key, long, arch, funnel }) {
     corners[x][z] = half;
     if (half) { box(x*S, z*S, half, half, H, V, I); box(x*S, z*S, half + TRIM, half + TRIM, TRIM_H, V, I); }
   }
-  return { V, I, solids, corners, door, doorN: [nx, nz], keySpot, fakeDoors };
+  return { V, I, solids, corners, door, doorN: [nx, nz], keySpot, fakeDoors, hideSpots };
 }
 
 const canvas = document.getElementById('c'), g = canvas.getContext('webgl2', { antialias: true });
@@ -2060,7 +2063,7 @@ function popup(text) { // VHS-style text mid-screen for a moment
   const el = document.getElementById('lookname'); el.textContent = text; el.hidden = false;
   clearTimeout(lookTimer); lookTimer = setTimeout(() => el.hidden = true, 1500);
 }
-forLooks(() => { g.uniform1f(U('_Debug'), DEBUG ? 1 : 0); g.uniform1f(U('_CellSize'), S); g.uniform1f(U('_WallHeight'), H); g.uniform1f(U('_FogDensity'), 0.035); g.uniform4f(U('_FogColor'), ...FOG, 1); });
+forLooks(() => { g.uniform1f(U('_CellSize'), S); g.uniform1f(U('_WallHeight'), H); g.uniform1f(U('_FogDensity'), 0.035); g.uniform4f(U('_FogColor'), ...FOG, 1); });
 g.enable(g.DEPTH_TEST); g.enable(g.CULL_FACE); g.frontFace(g.CW); g.clearColor(...FOG, 1); // frontFace: the mirrored projection (see viewProj) flips the winding
 
 function makeVao(v, i) {
@@ -2077,7 +2080,7 @@ function makeVao(v, i) {
   const img = new Image(); img.onload = () => { g.activeTexture(g.TEXTURE0 + k); g.bindTexture(g.TEXTURE_2D, tex); g.texImage2D(g.TEXTURE_2D, 0, g.RGB, g.RGB, g.UNSIGNED_BYTE, img); g.generateMipmap(g.TEXTURE_2D); g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR_MIPMAP_LINEAR); g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.REPEAT); }; img.src = src;
 });
 
-let seed = 0, nv = false, fakeDoors = [], atFake = false, maze, level, door, keySpot, hasKey, atDoor, solids, corners, run = 0;
+let seed = 0, nv = false, hideSpots = [], hidden = null, fakeDoors = [], atFake = false, maze, level, door, keySpot, hasKey, atDoor, solids, corners, run = 0;
 const me = { x: 0, z: 0, yaw: 0, pitch: 0, bob: 0, walk: 0, vy: 0, vp: 0, sy: 0, sp: 0 }; // yaw/pitch = where you aim; vy/vp = where the camera points, sy/sp = its spin
 const LOOK_SPRING = 90, LOOK_DAMP = 15; // camera follows your aim on a spring, slightly under-damped so it settles with a soft overshoot (PlayerController.cs)
 const SWAY = 1; // handheld camcorder wobble (PlayerController.sway); 0 = tripod-steady
@@ -2087,7 +2090,7 @@ function newRun() {
   seed = Math.random() * 100; forLooks(() => g.uniform1f(U('_Seed'), seed)); // moves the low-power zones, blackouts and wet patches each run
   const mesh = buildMesh(maze);
   const sign = [mesh.door[0] + mesh.doorN[0] * 0.17, 2.45, mesh.door[2] + mesh.doorN[1] * 0.17]; forLooks(() => g.uniform4f(U('_ExitPos'), ...sign, 0)); // its red glow
-  level = makeVao(mesh.V, mesh.I); door = mesh.door; fakeDoors = mesh.fakeDoors; keySpot = mesh.keySpot; hasKey = false; atDoor = false;
+  level = makeVao(mesh.V, mesh.I); door = mesh.door; fakeDoors = mesh.fakeDoors; hideSpots = mesh.hideSpots; hidden = null; keySpot = mesh.keySpot; hasKey = false; atDoor = false;
   ent.on = false; ent.cool = 0; ent.count = 0; ent.slammed = false; ent.seen = maze.m.map(r => r.map(() => false)); // a new tape, a new count
   document.getElementById('keyhud').hidden = true; document.getElementById('act').hidden = true;
   solids = mesh.solids; corners = mesh.corners;
@@ -2128,9 +2131,13 @@ function wetAt(x, z) {
 
 // Input
 const keys = new Set(); let look = [0, 0]; const touches = new Map();
-function search() {
-  if (document.getElementById('act').hidden || hasKey) return;
-  hasKey = true; document.getElementById('act').hidden = true; document.getElementById('keyhud').hidden = false; popup('GOT KEY');
+function search() { // the action button: SEARCH the key item, HIDE in a hiding spot, or LEAVE it
+  const b = document.getElementById('act'); if (b.hidden) return;
+  if (hidden) { me.x = hidden.out[0]; me.z = hidden.out[1]; hidden = null; return; }
+  if (b.spot) { hidden = b.spot; me.x = hidden.cam[0]; me.z = hidden.cam[2]; me.yaw = hidden.yaw; me.pitch = 0;
+    ent.sawHide = ent.on && Math.hypot(me.x - ent.x, me.z - ent.z) < 3.5; ent.linger = 0; return; } // too close: it saw you go in
+  if (hasKey) return;
+  hasKey = true; b.hidden = true; document.getElementById('keyhud').hidden = false; popup('GOT KEY');
 }
 document.getElementById('act').addEventListener('click', search);
 addEventListener('keydown', e => { keys.add(e.code); if (e.code === 'KeyL') nextLook(); if (e.code === 'KeyE') search(); if (e.code === 'KeyN') toggleNV(); }); addEventListener('keyup', e => keys.delete(e.code));
@@ -2254,12 +2261,13 @@ function entityStep(dt) {
       const sc = -((x + .5) * S - me.x) * fx - ((z + .5) * S - me.z) * fz + Math.random() * 4; if (sc > score) { score = sc; best = [x, z]; }
     }
     if (!best) return;
-    Object.assign(ent, { on: true, x: (best[0] + .5) * S, z: (best[1] + .5) * S, fade: 0 });
+    Object.assign(ent, { on: true, x: (best[0] + .5) * S, z: (best[1] + .5) * S, fade: 0, linger: 0, sawHide: false });
     return;
   }
   // follow the maze: head for the centre of the next room on the way to you, then straight at you
   const ec = [Math.floor(ent.x / S), Math.floor(ent.z / S)], d = cellSteps(...pc);
-  let tx = me.x, tz = me.z;
+  const fooled = hidden && !ent.sawHide; // you hid before it saw you: it searches your room, waits, gives up
+  let tx = fooled ? (pc[0] + .5) * S : me.x, tz = fooled ? (pc[1] + .5) * S : me.z;
   if (ec[0] !== pc[0] || ec[1] !== pc[1]) {
     for (let k = 0; k < 4; k++) if (maze.m[ec[0]][ec[1]] & BIT[k]) { const nx = ec[0] + DX[k], nz = ec[1] + DZ[k]; if (d[nx][nz] === d[ec[0]][ec[1]] - 1) { tx = (nx + .5) * S; tz = (nz + .5) * S; break; } }
     // line up with the doorway before cutting across, so it never clips a wall corner
@@ -2267,13 +2275,14 @@ function entityStep(dt) {
   }
   const dx = tx - ent.x, dz = tz - ent.z, l = Math.hypot(dx, dz);
   ent.yaw = Math.atan2(me.x - ent.x, me.z - ent.z);
-  if (d[ec[0]][ec[1]] > ENT_LOSE) { // you got away: it sinks out of sight
+  if (fooled && Math.hypot(tx - ent.x, tz - ent.z) < 0.5) ent.linger = (ent.linger || 0) + dt;
+  if (d[ec[0]][ec[1]] > ENT_LOSE || ent.linger > 4) { // you got away (or it gave up looking): it sinks out of sight
     ent.fade += dt; if (ent.fade > 1.5) { ent.on = false; ent.cool = ENT_COOLDOWN; }
     return;
   }
   ent.fade = Math.max(0, ent.fade - dt);
   if (l > 0.01) { const k = Math.min(l, ENT_SPEED * dt); ent.x += dx / l * k; ent.z += dz / l * k; }
-  if (Math.hypot(me.x - ent.x, me.z - ent.z) < ENT_REACH) caught();
+  if (!fooled && Math.hypot(me.x - ent.x, me.z - ent.z) < ENT_REACH + (hidden ? 0.6 : 0)) caught(); // it reaches into your hiding spot
 }
 function caught() { // the tape cuts out and a new one starts
   ent.on = false; fading = true; fade.classList.add('on'); popup('TAPE ENDS');
@@ -2315,8 +2324,9 @@ function slam() {
   src.connect(f).connect(gn).connect(gain); src.start(t);
 }
 // Its drone: a low growl that swells as it gets closer.
-let drone;
+let drone, crackle;
 function droneStep() {
+  ent.danger = ent.on ? Math.max(0, Math.min(1, (15 - Math.hypot(me.x - ent.x, me.z - ent.z)) / 13)) * (1 - Math.min(1, ent.fade / 1.5)) : 0; // 0 past 15 m, 1 at 2 m
   if (!audio) return;
   if (!drone) {
     const o1 = audio.createOscillator(), o2 = audio.createOscillator(), f = audio.createBiquadFilter(); drone = audio.createGain(); drone.gain.value = 0;
@@ -2325,6 +2335,14 @@ function droneStep() {
   }
   const dist = ent.on ? Math.hypot(me.x - ent.x, me.z - ent.z) : 1e9;
   drone.gain.setTargetAtTime(ent.on ? Math.min(0.9, 6 / (dist + 2)) * (1 - Math.min(1, ent.fade)) : 0, audio.currentTime, 0.3);
+  // The tape crackles as it closes in (the picture breaks up too, see _Danger in the VHS shaders): a loop of random pops.
+  if (!crackle) {
+    const n = audio.sampleRate * 2, buf = audio.createBuffer(1, n, audio.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) if (Math.random() < 0.0015) { const a = Math.random() * 0.9; for (let k = 0; k < 40 && i + k < n; k++) d[i + k] += (Math.random() * 2 - 1) * a * Math.exp(-k / 8); }
+    const src = audio.createBufferSource(), f = audio.createBiquadFilter(); crackle = audio.createGain(); crackle.gain.value = 0;
+    src.buffer = buf; src.loop = true; f.type = 'highpass'; f.frequency.value = 1200; src.connect(f).connect(crackle).connect(gain); src.start();
+  }
+  crackle.gain.setTargetAtTime((ent.danger || 0) ** 2 * 0.6, audio.currentTime, 0.2);
 }
 
 // Matrices
@@ -2372,16 +2390,25 @@ function stamp() { // real time and date, year pinned to 1996 for the found-foot
   if (DEBUG) document.getElementById('debug').textContent = '(DEBUG MODE) EXPLORED ' + Math.floor(ent.count / (W * D) * 100) + '%'; // slam at 30, entity at 35
 }
 stamp();
-document.getElementById('debug').hidden = document.getElementById('debugbr').hidden = !DEBUG;
+const showDebug = () => document.getElementById('debug').hidden = document.getElementById('debugbr').hidden = !DEBUG;
+showDebug();
+{ // hidden debug switch on the start screen
+  const el = document.getElementById('dbghold'); let timer;
+  el.addEventListener('pointerdown', () => { timer = setTimeout(() => { DEBUG = !DEBUG; showDebug(); popup(DEBUG ? 'DEBUG ON' : 'DEBUG OFF'); try { localStorage.setItem('debug', DEBUG ? '1' : '0'); } catch {} }, 4000); });
+  for (const e of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(e, () => clearTimeout(timer));
+  el.addEventListener('contextmenu', e => e.preventDefault()); // a long press on a phone would open the menu
+}
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   resize();
   if (playing) {
     me.yaw += look[0]; me.pitch = Math.max(-1.3, Math.min(1.3, me.pitch - look[1])); look = [0, 0];
+    if (hidden) { const a = hidden.kind ? 1.0 : 0.3, d = Math.atan2(Math.sin(me.yaw - hidden.yaw), Math.cos(me.yaw - hidden.yaw)); me.yaw = hidden.yaw + Math.max(-a, Math.min(a, d)); me.pitch = Math.max(-0.3, Math.min(0.3, me.pitch)); } // peek out, but stay in
     let mx = 0, mz = 0;
     if (keys.has('KeyW') || keys.has('ArrowUp')) mz += 1; if (keys.has('KeyS') || keys.has('ArrowDown')) mz -= 1;
     if (keys.has('KeyD') || keys.has('ArrowRight')) mx += 1; if (keys.has('KeyA') || keys.has('ArrowLeft')) mx -= 1;
     for (const s of touches.values()) if (s.left) { const k = Math.min(innerWidth, innerHeight) * 0.12; mx += (s.x - s.sx) / k; mz -= (s.y - s.sy) / k; }
+    if (hidden) mx = mz = 0;
     const len = Math.hypot(mx, mz); if (len > 1) { mx /= len; mz /= len; }
     const sprint = keys.has('ShiftLeft') || keys.has('ShiftRight') || runHeld; // phone: hold the RUN button
     const speed = (sprint ? 5 : 3) * dt;
@@ -2401,8 +2428,10 @@ function frame(now) {
     if (fakeNear && !atFake) popup('LOCKED');
     atFake = fakeNear;
     // key container: walk up to it and search it (E, or tap the button)
-    const kd = keySpot && !hasKey ? Math.hypot(keySpot[0] - me.x, keySpot[1] - me.z) : 1e9;
-    document.getElementById('act').hidden = !(kd < 1.7);
+    const kd = keySpot && !hasKey ? Math.hypot(keySpot[0] - me.x, keySpot[1] - me.z) : 1e9, act = document.getElementById('act');
+    act.spot = hidden ? null : hideSpots.find(h => Math.hypot(h.out[0] - me.x, h.out[1] - me.z) < 1.0) || null;
+    act.hidden = !(hidden || act.spot || kd < 1.7);
+    act.textContent = (touch ? '' : 'E: ') + (hidden ? 'LEAVE' : act.spot ? 'HIDE' : 'SEARCH');
     stamp(); entityStep(dt); droneStep();
   } else me.yaw += dt * 0.08; // slow pan behind the start screen
   // Handheld camcorder (same as PlayerController.cs): a slow drifting wobble and tilt all the time, plus a step rhythm while walking.
@@ -2413,7 +2442,7 @@ function frame(now) {
   const ld = Math.min(dt, 0.05);
   me.sy += (LOOK_SPRING * (me.yaw - me.vy) - LOOK_DAMP * me.sy) * ld; me.vy += me.sy * ld;
   me.sp += (LOOK_SPRING * (me.pitch - me.vp) - LOOK_DAMP * me.sp) * ld; me.vp += me.sp * ld;
-  const cam = [me.x + Math.cos(me.yaw) * side, 1.5 + Math.sin(me.bob) * 0.03 * w, me.z - Math.sin(me.yaw) * side];
+  const cam = hidden ? hidden.cam.slice() : [me.x + Math.cos(me.yaw) * side, 1.5 + Math.sin(me.bob) * 0.03 * w, me.z - Math.sin(me.yaw) * side];
   const camYaw = me.vy + drift(.37, .83, 1.9) * .45 * amp * deg, camPitch = me.vp + drift(.29, .71, 1.53) * .35 * amp * deg;
   ent.shake = Math.max(0, (ent.shake || 0) - dt * 1.5); const jolt = ent.shake * ent.shake * Math.sin(tt * 47) * 0.02;
   const camRoll = jolt + (drift(.23, .61, 1.31) * .7 * amp + Math.sin(me.bob * .5) * .6 * w) * deg - Math.max(-0.06, Math.min(0.06, me.sy * 0.015)); // leans into fast turns
@@ -2428,7 +2457,7 @@ function frame(now) {
   g.bindFramebuffer(g.FRAMEBUFFER, null); g.viewport(0, 0, canvas.width, canvas.height); g.disable(g.DEPTH_TEST); g.disable(g.CULL_FACE);
   g.useProgram(vhsProg); g.bindVertexArray(null);
   g.activeTexture(g.TEXTURE2); g.bindTexture(g.TEXTURE_2D, tape.tex);
-  g.uniform1i(VU('_MainTex'), 2); g.uniform2f(VU('_SrcSize'), tape.w, tape.h); g.uniform1f(VU('_T'), (now - t0) / 1000); g.uniform1f(VU('_NV'), nv ? 1 : 0);
+  g.uniform1i(VU('_MainTex'), 2); g.uniform2f(VU('_SrcSize'), tape.w, tape.h); g.uniform1f(VU('_T'), (now - t0) / 1000); g.uniform1f(VU('_NV'), nv ? 1 : 0); g.uniform1f(VU('_Danger'), ent.danger || 0);
   g.drawArrays(g.TRIANGLES, 0, 3);
   requestAnimationFrame(frame);
 }

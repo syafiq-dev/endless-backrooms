@@ -20,7 +20,9 @@ public class Entity : MonoBehaviour
     float cool, fade, cell;
     Transform body;
     Mesh mesh;
-    AudioSource drone, sfx;
+    AudioSource drone, sfx, crackle;
+    bool sawHide, wasHidden; // you went into hiding while it could see you
+    float linger; // how long it has stood in your room looking for you
     AudioClip slam;
 
     public void Init(BackroomsGame g, Transform p, Material mat, float cellSize)
@@ -34,6 +36,8 @@ public class Entity : MonoBehaviour
         drone = p.gameObject.AddComponent<AudioSource>();
         drone.clip = MakeDrone(); drone.loop = true; drone.volume = 0; drone.Play();
         sfx = p.gameObject.AddComponent<AudioSource>();
+        crackle = p.gameObject.AddComponent<AudioSource>();
+        crackle.clip = MakeCrackle(); crackle.loop = true; crackle.volume = 0; crackle.Play();
         slam = MakeSlam();
     }
 
@@ -47,6 +51,14 @@ public class Entity : MonoBehaviour
     {
         if (m == null) return;
         Shader.SetGlobalVector("_EntPos", on ? new Vector4(body.position.x, 1.5f + body.position.y, body.position.z, 1 - Mathf.Min(1, fade / 1.5f)) : Vector4.zero); // its black aura
+        // The tape breaks up (VHS shaders' _Danger) and crackles as it closes in: 0 past 15 m, 1 at 2 m.
+        float danger = on ? Mathf.Clamp01((15 - Vector2.Distance(new Vector2(body.position.x, body.position.z), new Vector2(player.position.x, player.position.z))) / 13) * (1 - Mathf.Min(1, fade / 1.5f)) : 0;
+        Shader.SetGlobalFloat("_Danger", danger);
+        crackle.volume = danger * danger * 0.6f;
+        bool hidden = PlayerController.Hidden >= 0;
+        if (hidden && !wasHidden) { sawHide = on && Vector3.Distance(body.position, player.position) < 3.5f; linger = 0; } // too close: it saw you go in
+        wasHidden = hidden;
+        bool fooled = hidden && !sawHide; // it searches your room, waits, gives up
         int W = m.GetLength(0), D = m.GetLength(1);
         var pp = player.position;
         (int x, int z) pc = (Mathf.Clamp(Mathf.FloorToInt(pp.x / cell), 0, W - 1), Mathf.Clamp(Mathf.FloorToInt(pp.z / cell), 0, D - 1));
@@ -70,14 +82,14 @@ public class Entity : MonoBehaviour
                     if (sc > score) { score = sc; best = (x, z); }
                 }
             if (best is not (int bx, int bz)) return;
-            on = true; fade = 0;
+            on = true; fade = 0; linger = 0; sawHide = false;
             body.position = new Vector3((bx + 0.5f) * cell, 0, (bz + 0.5f) * cell);
             body.gameObject.SetActive(true);
         }
         // follow the maze: head for the centre of the next room on the way to you, then straight at you
         var ep = body.position;
         (int x, int z) ec = (Mathf.Clamp(Mathf.FloorToInt(ep.x / cell), 0, W - 1), Mathf.Clamp(Mathf.FloorToInt(ep.z / cell), 0, D - 1));
-        var target = new Vector3(pp.x, 0, pp.z);
+        var target = fooled ? new Vector3((pc.x + 0.5f) * cell, 0, (pc.z + 0.5f) * cell) : new Vector3(pp.x, 0, pp.z);
         if (ec != pc)
         {
             for (int k = 0; k < 4; k++)
@@ -92,7 +104,8 @@ public class Entity : MonoBehaviour
                 break;
             }
         }
-        if (d[ec.x, ec.z] > loseRooms) // you got away: it sinks out of sight
+        if (fooled && Vector2.Distance(new Vector2(ep.x, ep.z), new Vector2(target.x, target.z)) < 0.5f) linger += Time.deltaTime;
+        if (d[ec.x, ec.z] > loseRooms || linger > 4) // you got away (or it gave up looking): it sinks out of sight
         {
             fade += Time.deltaTime;
             if (fade > 1.5f) { on = false; cool = cooldown; body.gameObject.SetActive(false); }
@@ -107,7 +120,8 @@ public class Entity : MonoBehaviour
         Pose(mesh, Time.time);
         if (toPlayer.sqrMagnitude > 0.001f) body.rotation = Quaternion.LookRotation(toPlayer);
         drone.volume = Mathf.Min(0.9f, 6 / (toPlayer.magnitude + 2)) * (1 - Mathf.Min(1, fade)); // a low growl that swells as it closes in
-        if (on && toPlayer.magnitude < reach) { on = false; body.gameObject.SetActive(false); game.Caught(); }
+        if (on && !fooled && toPlayer.magnitude < reach + (hidden ? 0.6f : 0)) // it reaches into your hiding spot
+            { on = false; body.gameObject.SetActive(false); game.Caught(); }
     }
 
     // A stick man of black wire, crooked and alien: hunched, head jutting and tilted, one shoulder low, arms hanging past the
@@ -160,6 +174,17 @@ public class Entity : MonoBehaviour
             lp += (saw - lp) * 0.025f; d[i] = lp * 0.5f;
         }
         var clip = AudioClip.Create("Drone", len, 1, sr, false); clip.SetData(d, 0); return clip;
+    }
+
+    // Tape crackle: a loop of random pops, high-passed.
+    static AudioClip MakeCrackle()
+    {
+        int sr = AudioSettings.outputSampleRate, len = sr * 2;
+        var d = new float[len]; float prev = 0, hp = 0;
+        for (int i = 0; i < len; i++)
+            if (Random.value < 0.0015f) { float a = Random.value * 0.9f; for (int k = 0; k < 40 && i + k < len; k++) d[i + k] += Random.Range(-1f, 1f) * a * Mathf.Exp(-k / 8f); }
+        for (int i = 0; i < len; i++) { hp = 0.85f * (hp + d[i] - prev); prev = d[i]; d[i] = hp; }
+        var clip = AudioClip.Create("Crackle", len, 1, sr, false); clip.SetData(d, 0); return clip;
     }
 
     // Something heavy hitting a wall a few rooms away: a thump, a crack and a rattle, muffled.

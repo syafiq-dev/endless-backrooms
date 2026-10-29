@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 // Renders the game camera into a low-res "tape" frame, then shows it full screen through the VHS shader.
 // Works in plain URP with no renderer-feature setup: a second camera looks at one quad on a spare layer.
@@ -16,6 +17,7 @@ public class VhsCamera : MonoBehaviour
     Material mat;
     Transform quad;
     GUIStyle style, debugStyle, lookStyle;
+    float holdTime; // hidden debug switch on the start screen
     int look;
 
     void Start()
@@ -71,6 +73,15 @@ public class VhsCamera : MonoBehaviour
             float w = Screen.height * 0.4f, h = Screen.height * 0.12f, y = Screen.height * 0.55f;
             if (GUI.Button(new Rect(Screen.width / 2f - w - 10, y, w, h), "NORMAL")) BackroomsGame.Begin(false);
             if (GUI.Button(new Rect(Screen.width / 2f + 10, y, w, h), "EASY")) BackroomsGame.Begin(true);
+            // Hidden debug switch: hold the bottom middle of the start screen for 4 s.
+            var ptr = Pointer.current;
+            var at = ptr != null ? ptr.position.ReadValue() : Vector2.zero;
+            bool held = ptr != null && ptr.press.isPressed && new Rect(Screen.width * 0.35f, Screen.height * 0.86f, Screen.width * 0.3f, Screen.height * 0.14f).Contains(new Vector2(at.x, Screen.height - at.y));
+            if (Event.current.type == EventType.Repaint)
+            {
+                holdTime = held ? holdTime + Time.unscaledDeltaTime : 0;
+                if (holdTime > 4) { holdTime = -1e9f; FindAnyObjectByType<BackroomsGame>()?.ToggleDebug(); } // once per hold
+            }
             return;
         }
         // LOOK button bottom-right cycles the shader presets; the new name pops up mid-screen for a moment.
@@ -87,8 +98,9 @@ public class VhsCamera : MonoBehaviour
             PlayerController.RunHeld = !PlayerController.RunHeld;
         // Key item prompt (also E on a keyboard) and the KEY marker once you have it.
         float sw = Screen.height * 0.32f, sh = Screen.height * 0.1f;
-        if (BackroomsGame.CanSearch && GUI.Button(new Rect((Screen.width - sw) / 2, Screen.height * 0.7f, sw, sh), "SEARCH"))
-            FindAnyObjectByType<BackroomsGame>()?.Search();
+        bool hidden = PlayerController.Hidden >= 0;
+        if ((hidden || BackroomsGame.NearSpot >= 0 || BackroomsGame.CanSearch) && GUI.Button(new Rect((Screen.width - sw) / 2, Screen.height * 0.7f, sw, sh), hidden ? "LEAVE" : BackroomsGame.NearSpot >= 0 ? "HIDE" : "SEARCH"))
+            FindAnyObjectByType<BackroomsGame>()?.Act();
         if (Time.time - BackroomsGame.PopupAt < 1.5f) // look names, LOCKED, GOT KEY
         {
             lookStyle ??= new GUIStyle(GUI.skin.label) { fontSize = Screen.height / 10, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, normal = { textColor = new Color(1f, 1f, 0.92f, 0.95f) } };
@@ -110,7 +122,8 @@ public class VhsCamera : MonoBehaviour
         if (Shader.GetGlobalFloat("_Debug") > 0) // set by BackroomsGame.debugMode; sits above the stamp
         {
             debugStyle ??= new GUIStyle(style) { normal = { textColor = new Color(0.3f, 1f, 0.35f, 0.95f) } };
-            GUI.Label(new Rect(m, Screen.height - m - style.fontSize * 3.9f, Screen.width, style.fontSize * 1.5f), "(DEBUG MODE) EXPLORED " + Mathf.FloorToInt(Entity.Explored * 100) + "%", debugStyle); // slam at 30, entity at 35
+            debugStyle.fontSize = style.fontSize / 2; // half the stamp's size
+            GUI.Label(new Rect(m, Screen.height - m - style.fontSize * 3.3f, Screen.width, style.fontSize), "(DEBUG MODE) EXPLORED " + Mathf.FloorToInt(Entity.Explored * 100) + "%", debugStyle); // slam at 30, entity at 35
         }
     }
 

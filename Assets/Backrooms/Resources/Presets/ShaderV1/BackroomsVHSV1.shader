@@ -22,6 +22,7 @@ Shader "Backrooms/VHS V1"
             TEXTURE2D(_MainTex); SAMPLER(sampler_MainTex);
             float2 _SrcSize; // frame size in pixels, set from VhsCamera.cs
             float _NV; // 1 = night vision mode (VhsCamera.cs)
+            float _Danger; // 0-1, how close the entity is (Entity.cs): the tape breaks up as it closes in
 
             struct Attributes { float4 positionOS : POSITION; float2 uv : TEXCOORD0; };
             struct Varyings { float4 positionCS : SV_POSITION; float2 uv : TEXCOORD0; };
@@ -59,7 +60,12 @@ Shader "Backrooms/VHS V1"
                 // Head-switching noise along the bottom edge.
                 float head = smoothstep(0.03, 0, uv.y);
                 shift += head * (0.015 + 0.02 * vhash(float2(row, t)));
+                shift += _NV * (jitter - 0.5) * px.x * 2.5; // NightShot's cranked gain: shakier lines
                 uv.x += shift;
+                // The entity close by: lines tear sideways and a fast band rolls through.
+                float tear = _Danger * _Danger;
+                float fast = smoothstep(0.1, 0, abs(uv.y - frac(-t * 0.6)));
+                uv.x += (vhash(float2(row, floor(t * 24) + 7)) - 0.5) * px.x * 8 * tear + fast * tear * (vhash(float2(row, floor(t * 50))) - 0.5) * 0.06;
 
                 // Luma: three taps, fairly sharp.
                 float y = luma(tap(uv)) * 0.5 + luma(tap(uv + float2(px.x, 0))) * 0.25 + luma(tap(uv - float2(px.x, 0))) * 0.25;
@@ -69,6 +75,9 @@ Shader "Backrooms/VHS V1"
                          + chroma(tap(uv + float2(px.x * 7, 0)));
                 c *= 0.2 * 1.15; // average, slightly oversaturated
                 float3 col = float3(y + 0.956 * c.x + 0.621 * c.y, y - 0.272 * c.x - 0.647 * c.y, y - 1.106 * c.x + 1.703 * c.y);
+                // ...and the colour slips off the shapes.
+                col.r = lerp(col.r, tap(uv + float2(px.x * 7, 0)).r, tear * 0.7);
+                col.b = lerp(col.b, tap(uv - float2(px.x * 5, 0)).b, tear * 0.7);
 
                 // Bloom: bright spots glow outward (cheap 8-tap ring).
                 float3 glow = tap(uv + float2(px.x * 6, 0)) + tap(uv - float2(px.x * 6, 0)) + tap(uv + float2(0, px.y * 6)) + tap(uv - float2(0, px.y * 6))
@@ -78,12 +87,18 @@ Shader "Backrooms/VHS V1"
                 // Tape: milky blacks, snow, scanlines, brighter noise inside the tracking band.
                 col = col * 0.9 + 0.05;
                 float snow = vhash(uv * _SrcSize + frac(t) * 911);
-                col += (snow - 0.5) * (0.07 + band * 0.15 + head * 0.4);
+                col += (snow - 0.5) * (0.07 + band * 0.15 + head * 0.4 + tear * 0.3);
+                col *= 1 - tear * step(0.93, vhash(float2(floor(t * 12), 3))) * 0.5; // the picture dips now and then
                 col *= 0.93 + 0.07 * sin(uv.y * _SrcSize.y * 3.14159);
 
-                // Night vision: grayscale, gain pushed up, extra grain like a cheap camcorder's NightShot.
+                // Night vision: grayscale, gain pushed up, like a cheap camcorder's NightShot.
+                // Like an old tape at night: crawling with static, coarse grain, streaky lines, white dropouts, a slow flicker.
                 float nvl = 1 - exp(-luma(col) * 1.8);
-                float nvg = nvl + (snow - 0.5) * 0.12;
+                float grain = vhash(floor(uv * _SrcSize * 0.5) + frac(t * 1.7) * 517) - 0.5; // 2 px clumps
+                float streak = vhash(float2(row, floor(t * 24))) - 0.5; // whole lines a bit brighter or darker
+                float drop = step(0.9993, vhash(float2(floor(uv.x * _SrcSize.x / 6), row) + floor(t * 30))); // white dropout dashes
+                float nvg = nvl * (0.92 + 0.08 * sin(t * 37)) + (snow - 0.5) * 0.16 + grain * 0.12 + streak * 0.06 + drop * 0.7;
+                nvg = nvg * 0.85 + 0.06; // milky blacks
                 col = lerp(col, float3(nvg, nvg, nvg), _NV);
 
                 // Vignette, a bit stronger in the corners like a cheap camcorder lens.

@@ -24,7 +24,6 @@ Shader "Backrooms/Surface V3"
             // Set from BackroomsGame.cs
             float _CellSize, _WallHeight, _FogDensity;
             float4 _FogColor;
-            float _Debug; // 1 = paint each room's variant number on its floor
             float _Seed;  // per run, moves the low-power zones
             float _NV;    // 1 = night vision: an infrared lamp on the camera (VhsCamera.cs)
             float4 _ExitPos; // the EXIT sign, whose red glow lights the dark around it
@@ -69,24 +68,11 @@ Shader "Backrooms/Surface V3"
                 return 1 - closed * (1 - own) * (1 - smoothstep(0, 0.7, d)) * 0.35;
             }
 
-            // Debug: distance to a line segment, and a 7-segment digit (0-9) in a 1 x 2 box.
+            // Distance to a line segment (for the EXIT letters).
             float seg(float2 p, float2 a, float2 b)
             {
                 float2 pa = p - a, ba = b - a;
                 return length(pa - ba * saturate(dot(pa, ba) / dot(ba, ba)));
-            }
-
-            float digit(float2 p, float d)
-            {
-                float k = 1e3;
-                if (d != 1 && d != 4) k = min(k, seg(p, float2(0, 2), float2(1, 2)));                    // top
-                if (d != 5 && d != 6) k = min(k, seg(p, float2(1, 2), float2(1, 1)));                    // upper right
-                if (d != 2) k = min(k, seg(p, float2(1, 1), float2(1, 0)));                              // lower right
-                if (d != 1 && d != 4 && d != 7) k = min(k, seg(p, float2(0, 0), float2(1, 0)));          // bottom
-                if (d == 0 || d == 2 || d == 6 || d == 8) k = min(k, seg(p, float2(0, 0), float2(0, 1))); // lower left
-                if (d != 1 && d != 2 && d != 3 && d != 7) k = min(k, seg(p, float2(0, 1), float2(0, 2))); // upper left
-                if (d != 0 && d != 1 && d != 7) k = min(k, seg(p, float2(0, 1), float2(1, 1)));          // middle
-                return 1 - smoothstep(0.14, 0.22, k);
             }
 
             // EXIT in 14 cm letters, q in metres from the middle of the sign.
@@ -288,11 +274,6 @@ Shader "Backrooms/Surface V3"
                 float grey = dot(col, float3(0.3, 0.59, 0.11));
                 col = lerp(float3(grey, grey, grey), col, 0.75); // muted colour
                 col = lerp(col, float3(1.0, 0.12, 0.08), letters); // on emergency power: ignores flicker and low power
-                if (_Debug > 0 && n.y > 0.5 && raw < 256) // variant number on the floor, just in front of the cell centre
-                {
-                    float2 dp = float2(local.x - s * 0.5, local.y - s * 0.5 - 0.6) / 0.45; // 0.45 x 0.9 m digit, reads upright facing +z
-                    col = lerp(col, float3(0.25, 1.0, 0.3), digit(dp, floor(round(mask) / 16)));
-                }
                 // Fog takes the light of where it is, so blackouts fade to black instead of glowing yellow.
                 // The entity's black aura: darkens whatever you see through the air around it (closest point of the view ray to its chest).
                 float3 rd = wpos - _WorldSpaceCameraPos;

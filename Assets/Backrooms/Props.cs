@@ -105,6 +105,21 @@ public static class Props
             new Part(0, 0.25f, 0.35f, 0.3f, 0.25f, 0.28f, Wood), new Part(0, 0.502f, 0.35f, 0.3f, 0.003f, 0.04f, White) } },
     };
 
+    // Hiding spots (LOCKER / HIDES in the browser build): a metal locker to stand in, or an office desk to crawl under, against a
+    // wall of an empty room. The locker has an inside (dark panels, a slatted vent at eye height) that only shows from in there.
+    public const float HideChance = 0.08f; // per empty room with a wall
+    public struct Hide { public Part[] parts; public float halfWidth, halfDepth, depth, step; public Vector3 cam; } // cam = your eye when hiding, step = where you step out to (from the wall)
+    public static readonly Hide[] Hides =
+    {
+        new Hide { halfWidth = 0.3f, halfDepth = 0.25f, depth = 0.25f, cam = new Vector3(0, 1.5f, 0.22f), step = 1.0f, parts = new[] {
+            new Part(0, 0.95f, 0.25f, 0.3f, 0.95f, 0.25f, Metal), new Part(0.22f, 1.0f, 0.515f, 0.012f, 0.06f, 0.015f, Dark),
+            new Part(0, 1.25f, 0.505f, 0.285f, 0.022f, 0.006f, Dark), new Part(0, 1.34f, 0.505f, 0.285f, 0.022f, 0.006f, Dark), new Part(0, 1.43f, 0.505f, 0.285f, 0.022f, 0.006f, Dark), new Part(0, 1.52f, 0.505f, 0.285f, 0.022f, 0.006f, Dark), new Part(0, 1.61f, 0.505f, 0.285f, 0.022f, 0.006f, Dark), new Part(0, 1.7f, 0.505f, 0.285f, 0.022f, 0.006f, Dark), // vent slats
+            new Part(0, 0.6f, 0.49f, 0.29f, 0.6f, 0.004f, Dark), new Part(0, 1.83f, 0.49f, 0.29f, 0.07f, 0.004f, Dark), // inside of the door, around the vent
+            new Part(-0.29f, 0.95f, 0.25f, 0.004f, 0.95f, 0.25f, Dark), new Part(0.29f, 0.95f, 0.25f, 0.004f, 0.95f, 0.25f, Dark),
+            new Part(0, 1.89f, 0.25f, 0.3f, 0.004f, 0.25f, Dark), new Part(0, 0.95f, 0.01f, 0.3f, 0.95f, 0.004f, Dark) } },
+        new Hide { halfWidth = 0.72f, halfDepth = 0.38f, depth = 0.42f, cam = new Vector3(0.2f, 0.45f, 0.42f), step = 1.3f, parts = KeyItems[0].parts }, // the office desk
+    };
+
     // How far each item reaches from its centre on the floor, for spacing (browser version uses it for collisions).
     public static readonly float[] Footprint = { 0.25f, 0.2f, 0.65f, 0.35f, 0.1f, 0.75f, 0.45f, 0.45f };
 }

@@ -11,6 +11,7 @@ public class PlayerController : MonoBehaviour
     [Range(0, 2)] public float sway = 1f; // handheld camcorder wobble; 0 = tripod-steady
 
     public static bool RunHeld; // RUN button toggle (VhsCamera)
+    public static int Hidden = -1; // index into BackroomsGame.HideSpots while you're in one
     CharacterController cc;
     Transform cam;
     AudioSource steps;
@@ -26,6 +27,21 @@ public class PlayerController : MonoBehaviour
         steps = gameObject.AddComponent<AudioSource>();
         thud = MakeStep(0.12f, false);
         squelch = MakeStep(0.24f, true);
+    }
+
+    // Hiding: stand in a locker or crawl under a desk (BackroomsGame.Act). You can look around a little but not move.
+    public void Hide(int i)
+    {
+        var h = BackroomsGame.HideSpots[i];
+        Hidden = i; cc.enabled = false;
+        transform.SetPositionAndRotation(h.cam - Vector3.up * camY, Quaternion.Euler(0, h.yaw, 0));
+        pitch = 0;
+    }
+
+    public void Leave()
+    {
+        var h = BackroomsGame.HideSpots[Hidden];
+        Hidden = -1; transform.position = h.step; cc.enabled = true;
     }
 
     // Footstep sounds, generated like AmbientHum: a soft carpet thud (smoothed brown noise), and a wet squelch
@@ -77,6 +93,12 @@ public class PlayerController : MonoBehaviour
         move = Vector2.ClampMagnitude(move, 1f);
         aimYaw += look.x;
         pitch = Mathf.Clamp(pitch - look.y, -80f, 80f);
+        if (Hidden >= 0) // peek out, but stay in
+        {
+            var h = BackroomsGame.HideSpots[Hidden];
+            float a = h.kind == 0 ? 17 : 57;
+            move = Vector2.zero; aimYaw = h.yaw + Mathf.Clamp(Mathf.DeltaAngle(h.yaw, aimYaw), -a, a); pitch = Mathf.Clamp(pitch, -17, 17);
+        }
         if (Mathf.Abs(Mathf.DeltaAngle(transform.eulerAngles.y, yaw)) > 0.01f) aimYaw = yaw = transform.eulerAngles.y; // something else turned us (new run): snap
         float dt = Mathf.Min(Time.deltaTime, 0.05f);
         yawSpin += (lookSpring * (aimYaw - yaw) - lookDamp * yawSpin) * dt; yaw += yawSpin * dt;
@@ -98,6 +120,6 @@ public class PlayerController : MonoBehaviour
         cam.localEulerAngles = new Vector3(pitchView + Drift(0.29f, 0.71f, 1.53f) * 0.35f * amp, Drift(0.37f, 0.83f, 1.9f) * 0.45f * amp,
                                            Drift(0.23f, 0.61f, 1.31f) * 0.7f * amp + Mathf.Sin(bob * 0.5f) * 0.6f * walk * sway - Mathf.Clamp(yawSpin * 0.015f, -3.5f, 3.5f)); // leans into fast turns
         cam.localPosition = new Vector3(Mathf.Sin(bob * 0.5f) * 0.025f * walk * sway, camY + Mathf.Sin(bob) * 0.03f * walk * sway, 0);
-        cc.SimpleMove(transform.TransformDirection(new Vector3(move.x, 0, move.y)) * (running ? runSpeed : speed)); // SimpleMove adds gravity
+        if (Hidden < 0) cc.SimpleMove(transform.TransformDirection(new Vector3(move.x, 0, move.y)) * (running ? runSpeed : speed)); // SimpleMove adds gravity
     }
 }
