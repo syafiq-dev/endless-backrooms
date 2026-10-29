@@ -14,7 +14,7 @@ Same model as Android: free, ads between runs, one-time purchase removes them fo
 1. **Business > Agreements**: sign the **Paid Apps** agreement and fill in bank + tax. Purchases (even test ones) don't work until this is done.
 2. **Apps > + New App**: name "Endless Backrooms", bundle ID `com.syafiqdev.endlessbackrooms` (create it under Certificates, Identifiers & Profiles first; same ID goes in Unity).
 3. In the app, **Monetization > In-App Purchases > +**: type **Non-Consumable**, product ID `remove_ads` (must match the code), price **RM 9.90**, name "Remove Ads". Add a screenshot of the button for review.
-4. **App Privacy**: follow Google's AdMob guide for the App Store privacy form ("Google Mobile Ads SDK data disclosure"). In short: Identifiers (Device ID), Usage Data (Product Interaction, Advertising Data), Diagnostics, Location (coarse), used for Third-Party Advertising and Analytics. A **privacy policy URL** is required (a short page on the Vercel site is fine).
+4. **App Privacy**: follow Google's AdMob guide for the App Store privacy form ("Google Mobile Ads SDK data disclosure"). In short: Identifiers (Device ID), Usage Data (Product Interaction, Advertising Data), Diagnostics, Location (coarse), used for Third-Party Advertising and Analytics. Privacy policy URL: `https://<your vercel site>/privacy.html` (shared with Android).
 5. **Age rating**: horror themes, no violence shown, so expect 12+.
 
 ## 3. Unity settings (File > Build Profiles > iOS > Switch Platform, then Player Settings)
@@ -23,6 +23,7 @@ Same model as Android: free, ads between runs, one-time purchase removes them fo
 - **Target Device: iPhone Only**, so App Review doesn't ask for iPad screenshots.
 - **Signing Team ID**: your Apple team ID (developer.apple.com > Membership), **Automatically Sign** on.
 - **Requires Persistent WiFi** off, orientation **Landscape Left + Right**.
+- Packages: same as the Android guide (`docs/ANDROID.md`, step 2). Scripting Define Symbols are per platform, so also add `ADMOB` and `UNITY_IAP` under the **iOS** tab (Other Settings), or the iPhone build has no ads and no purchase.
 - Ads are Google AdMob (shared with Android). In admob.google.com add an **iOS app** (separate from Android) and an interstitial ad unit. Put the iOS **App ID** in **Assets > Google Mobile Ads > Settings** and the ad unit ID in `IosInterstitial` at the top of `Monetization.cs`. Until then Google's test ads show.
 
 `Assets/Backrooms/Editor/IosPostBuild.cs` sets the no-encryption flag in Info.plist after every build (skips the export question on each upload). The AdMob plugin adds its own App ID and SKAdNetwork IDs.
