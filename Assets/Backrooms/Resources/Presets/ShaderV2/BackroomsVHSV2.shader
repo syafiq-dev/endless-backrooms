@@ -60,20 +60,20 @@ Shader "Backrooms/VHS V2"
                 shift += head * (0.015 + 0.02 * vhash(float2(row, t)));
                 uv.x += shift;
 
-                // Luma: three taps, fairly sharp.
-                float y = luma(tap(uv)) * 0.4 + (luma(tap(uv + float2(px.x, 0))) + luma(tap(uv - float2(px.x, 0)))) * 0.2
-                        + (luma(tap(uv + float2(px.x * 2, 0))) + luma(tap(uv - float2(px.x * 2, 0)))) * 0.1; // softer, like a cheap lens
-                // Chroma: smeared wide and pulled to the right.
-                float2 c = chroma(tap(uv + float2(px.x * 1, 0))) + chroma(tap(uv + float2(px.x * 3, 0)))
-                         + chroma(tap(uv + float2(px.x * 5, 0))) + chroma(tap(uv - float2(px.x * 1, 0)))
-                         + chroma(tap(uv + float2(px.x * 7, 0)));
+                // Luma: fairly sharp, with a soft lens falloff (wide taps here read as a double image).
+                float y = luma(tap(uv)) * 0.5 + (luma(tap(uv + float2(px.x, 0))) + luma(tap(uv - float2(px.x, 0)))) * 0.2
+                        + (luma(tap(uv + float2(px.x * 2, 0))) + luma(tap(uv - float2(px.x * 2, 0)))) * 0.05;
+                // Chroma: smeared and pulled a little to the right.
+                float2 c = chroma(tap(uv)) + chroma(tap(uv + float2(px.x * 1, 0)))
+                         + chroma(tap(uv + float2(px.x * 2, 0))) + chroma(tap(uv - float2(px.x * 1, 0)))
+                         + chroma(tap(uv + float2(px.x * 3, 0)));
                 c *= 0.2 * 1.15; // average, slightly oversaturated
                 float3 col = float3(y + 0.956 * c.x + 0.621 * c.y, y - 0.272 * c.x - 0.647 * c.y, y - 1.106 * c.x + 1.703 * c.y);
 
-                // Bloom: bright spots glow outward (cheap 8-tap ring).
-                float3 glow = tap(uv + float2(px.x * 9, 0)) + tap(uv - float2(px.x * 9, 0)) + tap(uv + float2(0, px.y * 9)) + tap(uv - float2(0, px.y * 9))
-                            + tap(uv + px * 6) + tap(uv - px * 6) + tap(uv + float2(px.x, -px.y) * 6) + tap(uv + float2(-px.x, px.y) * 6);
-                col += max(glow * 0.125 - 0.6, 0) * 1.1;
+                // Bloom: bright spots glow outward. Taps stay close so lights soften instead of echoing.
+                float3 glow = tap(uv + float2(px.x * 4, 0)) + tap(uv - float2(px.x * 4, 0)) + tap(uv + float2(0, px.y * 4)) + tap(uv - float2(0, px.y * 4))
+                            + tap(uv + px * 2.5) + tap(uv - px * 2.5) + tap(uv + float2(px.x, -px.y) * 2.5) + tap(uv + float2(-px.x, px.y) * 2.5);
+                col += max(glow * 0.125 - 0.6, 0) * 0.9;
 
                 // Tape: milky blacks, snow, scanlines, brighter noise inside the tracking band.
                 col = col * 0.86 + 0.08; // hazier

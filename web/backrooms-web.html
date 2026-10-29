@@ -1319,20 +1319,20 @@ in vec2 uv0; out vec4 o;
                 shift += head * (0.015 + 0.02 * vhash(vec2(row, t)));
                 uv.x += shift;
 
-                // Luma: three taps, fairly sharp.
-                float y = luma(tap(uv)) * 0.4 + (luma(tap(uv + vec2(px.x, 0.0))) + luma(tap(uv - vec2(px.x, 0.0)))) * 0.2
-                        + (luma(tap(uv + vec2(px.x * 2.0, 0.0))) + luma(tap(uv - vec2(px.x * 2.0, 0.0)))) * 0.1; // softer, like a cheap lens
-                // Chroma: smeared wide and pulled to the right.
-                vec2 c = chroma(tap(uv + vec2(px.x * 1.0, 0.0))) + chroma(tap(uv + vec2(px.x * 3.0, 0.0)))
-                         + chroma(tap(uv + vec2(px.x * 5.0, 0.0))) + chroma(tap(uv - vec2(px.x * 1.0, 0.0)))
-                         + chroma(tap(uv + vec2(px.x * 7.0, 0.0)));
+                // Luma: fairly sharp, with a soft lens falloff (wide taps here read as a double image).
+                float y = luma(tap(uv)) * 0.5 + (luma(tap(uv + vec2(px.x, 0.0))) + luma(tap(uv - vec2(px.x, 0.0)))) * 0.2
+                        + (luma(tap(uv + vec2(px.x * 2.0, 0.0))) + luma(tap(uv - vec2(px.x * 2.0, 0.0)))) * 0.05;
+                // Chroma: smeared and pulled a little to the right.
+                vec2 c = chroma(tap(uv)) + chroma(tap(uv + vec2(px.x * 1.0, 0.0)))
+                         + chroma(tap(uv + vec2(px.x * 2.0, 0.0))) + chroma(tap(uv - vec2(px.x * 1.0, 0.0)))
+                         + chroma(tap(uv + vec2(px.x * 3.0, 0.0)));
                 c *= 0.2 * 1.15; // average, slightly oversaturated
                 vec3 col = vec3(y + 0.956 * c.x + 0.621 * c.y, y - 0.272 * c.x - 0.647 * c.y, y - 1.106 * c.x + 1.703 * c.y);
 
-                // Bloom: bright spots glow outward (cheap 8.0-tap ring).
-                vec3 glow = tap(uv + vec2(px.x * 9.0, 0.0)) + tap(uv - vec2(px.x * 9.0, 0.0)) + tap(uv + vec2(0.0, px.y * 9.0)) + tap(uv - vec2(0.0, px.y * 9.0))
-                            + tap(uv + px * 6.0) + tap(uv - px * 6.0) + tap(uv + vec2(px.x, -px.y) * 6.0) + tap(uv + vec2(-px.x, px.y) * 6.0);
-                col += max(glow * 0.125 - 0.6, 0.0) * 1.1;
+                // Bloom: bright spots glow outward. Taps stay close so lights soften instead of echoing.
+                vec3 glow = tap(uv + vec2(px.x * 4.0, 0.0)) + tap(uv - vec2(px.x * 4.0, 0.0)) + tap(uv + vec2(0.0, px.y * 4.0)) + tap(uv - vec2(0.0, px.y * 4.0))
+                            + tap(uv + px * 2.5) + tap(uv - px * 2.5) + tap(uv + vec2(px.x, -px.y) * 2.5) + tap(uv + vec2(-px.x, px.y) * 2.5);
+                col += max(glow * 0.125 - 0.6, 0.0) * 0.9;
 
                 // Tape: milky blacks, snow, scanlines, brighter noise inside the tracking band.
                 col = col * 0.86 + 0.08; // hazier
