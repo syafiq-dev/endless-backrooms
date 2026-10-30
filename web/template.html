@@ -53,6 +53,11 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 #runb { position: fixed; z-index: 5; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 64px); width: clamp(84px, 19vmin, 150px); aspect-ratio: 1; padding: 0;
   font: inherit; font-size: clamp(18px, 3.6vmin, 30px); color: var(--ink); background: color-mix(in srgb, var(--shade) 35%, transparent); border: 1px solid color-mix(in srgb, var(--ink) 50%, transparent); cursor: pointer; touch-action: none; }
 #runb.on { color: var(--shade); background: var(--ink); }
+/* RUN energy: a thin vertical bar just left of the RUN button (same spot on desktop) */
+#energy { position: fixed; z-index: 5; right: calc(max(16px, env(safe-area-inset-right, 0px)) + clamp(84px, 19vmin, 150px) + 8px); bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+  width: 8px; height: clamp(84px, 19vmin, 150px); border: 1px solid color-mix(in srgb, var(--ink) 50%, transparent); display: flex; align-items: flex-end; pointer-events: none; }
+#energy i { display: block; width: 100%; background: var(--ink); }
+#energy.out i { background: #d24a3a; }
 @media (prefers-reduced-motion: reduce) { #fade { transition: none; } }
 </style>
 
@@ -68,6 +73,7 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 <div id="fade"></div>
 <button id="nv" type="button" aria-pressed="false" hidden>NIGHT</button>
 <button id="runb" type="button" hidden>RUN</button>
+<div id="energy" hidden><i></i></div>
 <div id="lookname" hidden></div>
 <button id="act" type="button" hidden>SEARCH</button>
 <div id="start">
@@ -468,6 +474,7 @@ function newRun() {
   seed = Math.random() * 100; forLooks(() => g.uniform1f(U('_Seed'), seed)); // moves the low-power zones, blackouts and wet patches each run
   const mesh = buildMesh(maze);
   const sign = [mesh.door[0] + mesh.doorN[0] * 0.17, 2.45, mesh.door[2] + mesh.doorN[1] * 0.17]; forLooks(() => g.uniform4f(U('_ExitPos'), ...sign, 0)); // its red glow
+  energy = 1; winded = false;
   level = makeVao(mesh.V, mesh.I); door = mesh.door; fakeDoors = mesh.fakeDoors; hideSpots = mesh.hideSpots; hidden = null; hideDir = 0; keySpot = mesh.keySpot; hasKey = false; atDoor = false;
   ent.on = false; ent.cool = 0; ent.count = 0; ent.slammed = false; ent.omened = false; ent.omen = 0; ent.seen = maze.m.map(r => r.map(() => false)); // a new tape, a new count
   document.getElementById('keyhud').hidden = true; document.getElementById('act').hidden = true;
@@ -571,6 +578,10 @@ const press = (el, down, up) => {
 };
 press(document.getElementById('nv'), toggleNV);
 let runHeld = false; // RUN toggle (phones)
+// Running energy: RUN_TIME seconds of running on a full bar; it refills in RUN_REFILL seconds while RUN is off.
+// Run it empty and you're winded: no running until it's back to a quarter.
+const RUN_TIME = 50, RUN_REFILL = 25;
+let energy = 1, winded = false;
 press(document.getElementById('runb'), () => { runHeld = !runHeld; document.getElementById('runb').classList.toggle('on', runHeld); }); // tap to toggle running
 // Footsteps: a soft carpet thud per step (heavier when running), and a wet squelch on soaked carpet.
 let stepNoise;
@@ -594,7 +605,7 @@ document.getElementById('mute').addEventListener('click', e => {
 let playing = false, easy = false; // EASY: no entity, just exploring
 const begin = calm => {
   easy = calm;
-  document.getElementById("start").hidden = true; document.getElementById("nv").hidden = false; document.getElementById("runb").hidden = !touch; playing = true; startAudio(); showLook(lookIdx);
+  document.getElementById("start").hidden = true; document.getElementById("nv").hidden = false; document.getElementById("runb").hidden = !touch; document.getElementById("energy").hidden = false; playing = true; startAudio(); showLook(lookIdx);
   if (!touch) canvas.requestPointerLock?.()?.catch?.(() => {});
   setTimeout(() => hint.classList.add('gone'), 6000);
 };
@@ -804,7 +815,13 @@ function frame(now) {
     for (const s of touches.values()) if (s.left) { const k = Math.min(innerWidth, innerHeight) * 0.12; mx += (s.x - s.sx) / k; mz -= (s.y - s.sy) / k; }
     if (hidden) mx = mz = 0;
     const len = Math.hypot(mx, mz); if (len > 1) { mx /= len; mz /= len; }
-    const sprint = keys.has('ShiftLeft') || keys.has('ShiftRight') || runHeld; // phone: hold the RUN button
+    const wantRun = keys.has('ShiftLeft') || keys.has('ShiftRight') || runHeld; // phone: the RUN toggle
+    const sprint = wantRun && !winded;
+    if (sprint && Math.hypot(mx, mz) > 0.1) energy -= dt / RUN_TIME; else if (!wantRun) energy += dt / RUN_REFILL;
+    energy = Math.max(0, Math.min(1, energy));
+    if (energy === 0 && !winded) { winded = true; runHeld = false; document.getElementById('runb').classList.remove('on'); }
+    if (winded && energy >= 0.25) winded = false;
+    document.querySelector('#energy i').style.height = energy * 100 + '%'; document.getElementById('energy').classList.toggle('out', winded);
     const speed = (sprint ? 5 : 3) * dt;
     const fx = Math.sin(me.yaw), fz = Math.cos(me.yaw);
     const dx = (fx * mz + fz * mx) * speed, dz = (fz * mz - fx * mx) * speed; // right = +x when facing +z, as in Unity

@@ -11,6 +11,11 @@ public class PlayerController : MonoBehaviour
     [Range(0, 2)] public float sway = 1f; // handheld camcorder wobble; 0 = tripod-steady
 
     public static bool RunHeld; // RUN button toggle (VhsCamera)
+    // Running energy (bar drawn by VhsCamera): runTime seconds of running on a full bar, refills in runRefill seconds while
+    // you're not trying to run. Run it empty and you're winded: no running until it's back to a quarter.
+    public float runTime = 50, runRefill = 25;
+    public static float Energy = 1;
+    public static bool Winded;
     public static int Hidden = -1; // index into BackroomsGame.HideSpots while you're in one (or getting in or out)
     public static int HideDir; // 1 = getting in, -1 = getting out, 0 = still
     public static bool InSpot => Hidden >= 0 && HideDir == 0; // all the way in
@@ -77,7 +82,8 @@ public class PlayerController : MonoBehaviour
     void Update()
     {
         Vector2 move = Vector2.zero, look = Vector2.zero;
-        bool running = RunHeld || Keyboard.current != null && Keyboard.current.leftShiftKey.isPressed; // RUN button (VhsCamera) or Shift
+        bool wantRun = RunHeld || Keyboard.current != null && Keyboard.current.leftShiftKey.isPressed; // RUN button (VhsCamera) or Shift
+        bool running = wantRun && !Winded;
 
         var kb = Keyboard.current;
         if (kb != null)
@@ -100,6 +106,10 @@ public class PlayerController : MonoBehaviour
             }
 
         move = Vector2.ClampMagnitude(move, 1f);
+        if (running && move.magnitude > 0.1f) Energy -= Time.deltaTime / runTime; else if (!wantRun) Energy += Time.deltaTime / runRefill;
+        Energy = Mathf.Clamp01(Energy);
+        if (Energy <= 0 && !Winded) { Winded = true; RunHeld = false; running = false; }
+        if (Winded && Energy >= 0.25f) Winded = false;
         aimYaw += look.x;
         pitch = Mathf.Clamp(pitch - look.y, -80f, 80f);
         if (Hidden < 0) HideDir = 0;

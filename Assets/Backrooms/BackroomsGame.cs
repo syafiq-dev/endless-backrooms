@@ -119,7 +119,7 @@ public class BackroomsGame : MonoBehaviour
 
         if (entity) entity.NewRun(m);
         var cc = player.GetComponent<CharacterController>();
-        PlayerController.Hidden = -1; PlayerController.HideDir = 0;
+        PlayerController.Hidden = -1; PlayerController.HideDir = 0; PlayerController.Energy = 1; PlayerController.Winded = false;
         cc.enabled = false; // CharacterController ignores direct position writes while enabled
         player.transform.position = CellCenter(start);
         cc.enabled = true;

@@ -96,6 +96,12 @@ public class VhsCamera : MonoBehaviour
         float rw = Screen.height * 0.24f;
         if (GUI.Button(new Rect(Screen.width - rw - Screen.height * 0.04f, Screen.height - bh - rw - Screen.height * 0.08f, rw, rw), PlayerController.RunHeld ? "RUN ON" : "RUN"))
             PlayerController.RunHeld = !PlayerController.RunHeld;
+        // Running energy: a thin vertical bar just left of RUN, red while you're winded.
+        var bar = new Rect(Screen.width - rw - Screen.height * 0.04f - 14, Screen.height - bh - rw - Screen.height * 0.08f, 8, rw);
+        GUI.color = new Color(1, 1, 0.92f, 0.35f); GUI.DrawTexture(bar, Texture2D.whiteTexture);
+        GUI.color = PlayerController.Winded ? new Color(0.82f, 0.29f, 0.23f) : new Color(1, 1, 0.92f);
+        GUI.DrawTexture(new Rect(bar.x, bar.y + bar.height * (1 - PlayerController.Energy), bar.width, bar.height * PlayerController.Energy), Texture2D.whiteTexture);
+        GUI.color = Color.white;
         // Key item prompt (also E on a keyboard) and the KEY marker once you have it.
         float sw = Screen.height * 0.32f, sh = Screen.height * 0.1f;
         bool hidden = PlayerController.Hidden >= 0;
