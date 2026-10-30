@@ -1770,7 +1770,7 @@ const VARIANTS = [
   [[-1, 0, .1, 2], [1, 0, .1, 2]],                                                    // 8 Corridor (straight runs only)
 ];
 const CORRIDOR = 8;
-const ARM = 0.4, BEAM = 0.16, BEAM_DROP = 0.45; // archway pillars: + arms (half length, half thickness), and how far the beams hang down
+const ARM = 0.55, BEAM = 0.09, BEAM_DROP = 0.45; // archway pillars: + arms (half length, half thickness), and how far the beams hang down
 const rotate = (b, k) => { for (let i = 0; i < k; i++) b = [-b[1], b[0], b[3], b[2]]; return b; };
 // Rare furniture from Props.cs: parts are [x, y, z, half x, half y, half z, colour, spin about z]; colour 0 wood, 1 metal, 2 red, 3 white, 4 dark.
 // Chair, stool, small table, filing cabinet, stop sign, sofa, fridge, granny chair. Colour 5 olive fabric, 6 rose fabric.

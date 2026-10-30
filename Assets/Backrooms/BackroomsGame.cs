@@ -281,7 +281,7 @@ public class BackroomsGame : MonoBehaviour
                     break;
                 }
             }
-        const float Arm = 0.4f, Beam = 0.16f, BeamDrop = 0.45f; // archway pillars: + arms (half length, half thickness), and how far beams hang down
+        const float Arm = 0.55f, Beam = 0.09f, BeamDrop = 0.45f; // archway pillars: + arms (half length, half thickness), and how far beams hang down
         for (int x = 0; x < W; x++)
             for (int z = 0; z < D; z++)
             {
