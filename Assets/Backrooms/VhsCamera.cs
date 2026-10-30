@@ -66,7 +66,7 @@ public class VhsCamera : MonoBehaviour
     // Camcorder overlay: PLAY in the corner, time and date bottom-left (year pinned to 1996 for the found-footage feel).
     void OnGUI()
     {
-        if (Entity.Flash || Entity.Blackout > 0) { GUI.color = Color.black; GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture); GUI.color = Color.white; } // the jumpscare's black frames and the cut
+        if (Entity.Blackout > 0) { GUI.color = Color.black; GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture); GUI.color = Color.white; } // the cut after a jumpscare
         if (!BackroomsGame.Started) // start screen: title, then NORMAL or EASY (no entity)
         {
             lookStyle ??= new GUIStyle(GUI.skin.label) { fontSize = Screen.height / 10, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, normal = { textColor = new Color(1f, 1f, 0.92f, 0.95f) } };
