@@ -1,12 +1,12 @@
 using UnityEngine;
 
-// The entity (same as the browser build). A slam somewhere out of sight once you've explored 30% of the rooms; at 35% it
+// The entity (same as the browser build). A slam somewhere out of sight once you've explored 20% of the rooms; at 25% it
 // appears a few rooms behind you and follows the maze toward you, lit or dark, a bit faster than walking but slower than
 // running. Get loseRooms ahead and it loses you and sinks away (it comes back after a while). If it reaches you, the tape ends.
 // BackroomsGame adds this when entityOn is ticked and calls NewRun for every maze.
 public class Entity : MonoBehaviour
 {
-    public float slamAt = 0.30f, wakeAt = 0.35f, speed = 3.4f, reach = 0.9f, cooldown = 25f;
+    public float slamAt = 0.20f, wakeAt = 0.25f, speed = 3.4f, reach = 0.9f, cooldown = 25f;
     public int loseRooms = 6;
     public static float Explored; // share of rooms you've been in this run, shown in debug mode
 
