@@ -27,6 +27,7 @@ Shader "Backrooms/Surface V3"
             float _Seed;  // per run, moves the low-power zones
             float _NV;    // 1 = night vision: an infrared lamp on the camera (VhsCamera.cs)
             float4 _ExitPos; // the EXIT sign, whose red glow lights the dark around it
+            float _Omen;     // 0-1: the lights around you stutter and dim for a few seconds, a warning before the entity (Entity.cs)
             float4 _EntPos;  // the entity's chest (xyz) and how strong its black aura is (w, 0 = no entity) (Entity.cs)
             // Mapped in world space (metres), so no UVs needed. Textures from the 2022 project.
             TEXTURE2D(_WallTex); SAMPLER(sampler_WallTex);
@@ -262,6 +263,9 @@ Shader "Backrooms/Surface V3"
 
                 float3 lightCol = lerp(float3(0.9, 0.85, 0.6), float3(0.92, 1.0, 0.9), power); // cold fluorescent tubes // low power runs warm
                 float3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
+                // The omen: within ~12 m of you the lights stutter between dim and dimmer.
+                float stutter = hash(float2(floor(t * 13), 7.3)) > 0.45 ? 0.35 : 0.8;
+                col *= 1 - _Omen * smoothstep(14, 5, length(_WorldSpaceCameraPos - wpos)) * (1 - stutter);
                 // Red spill from the EXIT sign: emergency power, so it shows best in the dark.
                 float3 toSign = _ExitPos.xyz - wpos; float dSign = length(toSign);
                 col += albedo * float3(1.0, 0.1, 0.06) * (saturate(dot(n, toSign / dSign)) * 0.7 + 0.3) * 0.3 / (1 + dSign * dSign * 0.8) * ao;

@@ -27,7 +27,7 @@ public class BackroomsGame : MonoBehaviour
     public bool entityOn = true; // hidden switch for the entity (Entity.cs); off = no entity
     public static bool Started, Easy; // start screen (VhsCamera): NORMAL or EASY (no entity)
     public static void Begin(bool easy) { Easy = easy; Started = true; Time.timeScale = 1; }
-    public bool debugMode = true; // shows (DEBUG MODE) and the share of rooms explored on the VHS stamp
+    public bool debugMode = false; // shows (DEBUG MODE) and the share of rooms explored on the VHS stamp
 
     Material mat;
     GameObject level, player;
@@ -40,7 +40,7 @@ public class BackroomsGame : MonoBehaviour
 
     void Start()
     {
-        debugMode = PlayerPrefs.GetInt("debug", debugMode ? 1 : 0) == 1; // the start screen's hidden switch wins over the Inspector
+        debugMode = PlayerPrefs.GetInt("debugMode", debugMode ? 1 : 0) == 1; // the start screen's hidden switch wins over the Inspector
         Application.targetFrameRate = 60;
         Look = look;
         mat = new Material(Shader.Find("Backrooms/Surface V" + look)); // lives in Resources/, so it ships in builds
@@ -128,7 +128,7 @@ public class BackroomsGame : MonoBehaviour
     public void Caught() { Popup("TAPE ENDS"); NewRun(); } // the entity got you: the tape cuts and a new one starts
 
     public void NextLook() => look = look % 5 + 1;
-    public void ToggleDebug() { debugMode = !debugMode; PlayerPrefs.SetInt("debug", debugMode ? 1 : 0); Popup(debugMode ? "DEBUG ON" : "DEBUG OFF"); } // remembered on this device
+    public void ToggleDebug() { debugMode = !debugMode; PlayerPrefs.SetInt("debugMode", debugMode ? 1 : 0); Popup(debugMode ? "DEBUG ON" : "DEBUG OFF"); } // remembered on this device
     // The action button (E): LEAVE a hiding spot, HIDE in the one you're at, or SEARCH the key item.
     public void Act()
     {

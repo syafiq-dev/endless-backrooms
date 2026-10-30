@@ -82,7 +82,7 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 <script id="fs1" type="x-shader">#version 300 es
 precision highp float;
 uniform float _CellSize, _WallHeight, _FogDensity, _T, _Seed, _NV;
-uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
+uniform float _Omen; uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 #define _WorldSpaceCameraPos _Cam
@@ -303,6 +303,9 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 
                 vec3 lightCol = mix(vec3(1.0, 0.75, 0.45), vec3(1.0, 0.94, 0.70), power); // low power runs warm
                 vec3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
+                // The omen: within ~12.0 m of you the lights stutter between dim and dimmer.
+                float stutter = hash(vec2(floor(t * 13.0), 7.3)) > 0.45 ? 0.35 : 0.8;
+                col *= 1.0 - _Omen * smoothstep(14.0, 5.0, length(_WorldSpaceCameraPos - wpos)) * (1.0 - stutter);
                 // Red spill from the EXIT sign: emergency power, so it shows best in the dark.
                 vec3 toSign = _ExitPos.xyz - wpos; float dSign = length(toSign);
                 col += albedo * vec3(1.0, 0.1, 0.06) * (clamp(dot(n, toSign / dSign), 0., 1.) * 0.7 + 0.3) * 0.3 / (1.0 + dSign * dSign * 0.8) * ao;
@@ -332,7 +335,7 @@ void main() {
 <script id="fs2" type="x-shader">#version 300 es
 precision highp float;
 uniform float _CellSize, _WallHeight, _FogDensity, _T, _Seed, _NV;
-uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
+uniform float _Omen; uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 #define _WorldSpaceCameraPos _Cam
@@ -553,6 +556,9 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 
                 vec3 lightCol = mix(vec3(1.0, 0.75, 0.45), vec3(1.0, 0.94, 0.70), power); // low power runs warm
                 vec3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
+                // The omen: within ~12.0 m of you the lights stutter between dim and dimmer.
+                float stutter = hash(vec2(floor(t * 13.0), 7.3)) > 0.45 ? 0.35 : 0.8;
+                col *= 1.0 - _Omen * smoothstep(14.0, 5.0, length(_WorldSpaceCameraPos - wpos)) * (1.0 - stutter);
                 // Red spill from the EXIT sign: emergency power, so it shows best in the dark.
                 vec3 toSign = _ExitPos.xyz - wpos; float dSign = length(toSign);
                 col += albedo * vec3(1.0, 0.1, 0.06) * (clamp(dot(n, toSign / dSign), 0., 1.) * 0.7 + 0.3) * 0.3 / (1.0 + dSign * dSign * 0.8) * ao;
@@ -582,7 +588,7 @@ void main() {
 <script id="fs3" type="x-shader">#version 300 es
 precision highp float;
 uniform float _CellSize, _WallHeight, _FogDensity, _T, _Seed, _NV;
-uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
+uniform float _Omen; uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 #define _WorldSpaceCameraPos _Cam
@@ -803,6 +809,9 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 
                 vec3 lightCol = mix(vec3(0.9, 0.85, 0.6), vec3(0.92, 1.0, 0.9), power); // cold fluorescent tubes // low power runs warm
                 vec3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
+                // The omen: within ~12.0 m of you the lights stutter between dim and dimmer.
+                float stutter = hash(vec2(floor(t * 13.0), 7.3)) > 0.45 ? 0.35 : 0.8;
+                col *= 1.0 - _Omen * smoothstep(14.0, 5.0, length(_WorldSpaceCameraPos - wpos)) * (1.0 - stutter);
                 // Red spill from the EXIT sign: emergency power, so it shows best in the dark.
                 vec3 toSign = _ExitPos.xyz - wpos; float dSign = length(toSign);
                 col += albedo * vec3(1.0, 0.1, 0.06) * (clamp(dot(n, toSign / dSign), 0., 1.) * 0.7 + 0.3) * 0.3 / (1.0 + dSign * dSign * 0.8) * ao;
@@ -834,7 +843,7 @@ void main() {
 <script id="fs4" type="x-shader">#version 300 es
 precision highp float;
 uniform float _CellSize, _WallHeight, _FogDensity, _T, _Seed, _NV;
-uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
+uniform float _Omen; uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 #define _WorldSpaceCameraPos _Cam
@@ -1055,6 +1064,9 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 
                 vec3 lightCol = mix(vec3(1.0, 0.55, 0.25), vec3(1.0, 0.72, 0.42), power); // amber // low power runs warm
                 vec3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
+                // The omen: within ~12.0 m of you the lights stutter between dim and dimmer.
+                float stutter = hash(vec2(floor(t * 13.0), 7.3)) > 0.45 ? 0.35 : 0.8;
+                col *= 1.0 - _Omen * smoothstep(14.0, 5.0, length(_WorldSpaceCameraPos - wpos)) * (1.0 - stutter);
                 // Red spill from the EXIT sign: emergency power, so it shows best in the dark.
                 vec3 toSign = _ExitPos.xyz - wpos; float dSign = length(toSign);
                 col += albedo * vec3(1.0, 0.1, 0.06) * (clamp(dot(n, toSign / dSign), 0., 1.) * 0.7 + 0.3) * 0.3 / (1.0 + dSign * dSign * 0.8) * ao;
@@ -1084,7 +1096,7 @@ void main() {
 <script id="fs5" type="x-shader">#version 300 es
 precision highp float;
 uniform float _CellSize, _WallHeight, _FogDensity, _T, _Seed, _NV;
-uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
+uniform float _Omen; uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 #define _WorldSpaceCameraPos _Cam
@@ -1305,6 +1317,9 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 
                 vec3 lightCol = mix(vec3(1.0, 0.75, 0.45), vec3(1.0, 0.94, 0.70), power); // low power runs warm
                 vec3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
+                // The omen: within ~12.0 m of you the lights stutter between dim and dimmer.
+                float stutter = hash(vec2(floor(t * 13.0), 7.3)) > 0.45 ? 0.35 : 0.8;
+                col *= 1.0 - _Omen * smoothstep(14.0, 5.0, length(_WorldSpaceCameraPos - wpos)) * (1.0 - stutter);
                 // Red spill from the EXIT sign: emergency power, so it shows best in the dark.
                 vec3 toSign = _ExitPos.xyz - wpos; float dSign = length(toSign);
                 col += albedo * vec3(1.0, 0.1, 0.06) * (clamp(dot(n, toSign / dSign), 0., 1.) * 0.7 + 0.3) * 0.3 / (1.0 + dSign * dSign * 0.8) * ao;
@@ -1393,12 +1408,11 @@ in vec2 uv0; out vec4 o;
                 col *= 0.93 + 0.07 * sin(uv.y * _SrcSize.y * 3.14159);
 
                 // Night vision: grayscale, gain pushed up, like a cheap camcorder's NightShot.
-                // Like an old tape at night: crawling with static, coarse grain, streaky lines, white dropouts, a slow flicker.
+                // Like an old tape at night: crawling with static, coarse grain, streaky lines, a slow flicker.
                 float nvl = 1.0 - exp(-luma(col) * 1.8);
                 float grain = vhash(floor(uv * _SrcSize * 0.5) + fract(t * 1.7) * 517.0) - 0.5; // 2.0 px clumps
                 float streak = vhash(vec2(row, floor(t * 24.0))) - 0.5; // whole lines a bit brighter or darker
-                float drop = step(0.9993, vhash(vec2(floor(uv.x * _SrcSize.x / 6.0), row) + floor(t * 30.0))); // white dropout dashes
-                float nvg = nvl * (0.92 + 0.08 * sin(t * 37.0)) + (snow - 0.5) * 0.16 + grain * 0.12 + streak * 0.06 + drop * 0.7;
+                float nvg = nvl * (0.92 + 0.08 * sin(t * 37.0)) + (snow - 0.5) * 0.16 + grain * 0.12 + streak * 0.06;
                 nvg = nvg * 0.85 + 0.06; // milky blacks
                 col = mix(col, vec3(nvg, nvg, nvg), _NV);
 
@@ -1473,12 +1487,11 @@ in vec2 uv0; out vec4 o;
                 col *= 0.96 + 0.04 * sin(uv.y * _SrcSize.y * 3.14159);
 
                 // Night vision: grayscale, gain pushed up, like a cheap camcorder's NightShot.
-                // Like an old tape at night: crawling with static, coarse grain, streaky lines, white dropouts, a slow flicker.
+                // Like an old tape at night: crawling with static, coarse grain, streaky lines, a slow flicker.
                 float nvl = 1.0 - exp(-luma(col) * 1.8);
                 float grain = vhash(floor(uv * _SrcSize * 0.5) + fract(t * 1.7) * 517.0) - 0.5; // 2.0 px clumps
                 float streak = vhash(vec2(row, floor(t * 24.0))) - 0.5; // whole lines a bit brighter or darker
-                float drop = step(0.9993, vhash(vec2(floor(uv.x * _SrcSize.x / 6.0), row) + floor(t * 30.0))); // white dropout dashes
-                float nvg = nvl * (0.92 + 0.08 * sin(t * 37.0)) + (snow - 0.5) * 0.16 + grain * 0.12 + streak * 0.06 + drop * 0.7;
+                float nvg = nvl * (0.92 + 0.08 * sin(t * 37.0)) + (snow - 0.5) * 0.16 + grain * 0.12 + streak * 0.06;
                 nvg = nvg * 0.85 + 0.06; // milky blacks
                 col = mix(col, vec3(nvg, nvg, nvg), _NV);
 
@@ -1550,12 +1563,11 @@ in vec2 uv0; out vec4 o;
                 col *= 0.97 + 0.03 * sin(uv.y * _SrcSize.y * 3.14159);
 
                 // Night vision: grayscale, gain pushed up, like a cheap camcorder's NightShot.
-                // Like an old tape at night: crawling with static, coarse grain, streaky lines, white dropouts, a slow flicker.
+                // Like an old tape at night: crawling with static, coarse grain, streaky lines, a slow flicker.
                 float nvl = 1.0 - exp(-luma(col) * 1.8);
                 float grain = vhash(floor(uv * _SrcSize * 0.5) + fract(t * 1.7) * 517.0) - 0.5; // 2.0 px clumps
                 float streak = vhash(vec2(row, floor(t * 24.0))) - 0.5; // whole lines a bit brighter or darker
-                float drop = step(0.9993, vhash(vec2(floor(uv.x * _SrcSize.x / 6.0), row) + floor(t * 30.0))); // white dropout dashes
-                float nvg = nvl * (0.92 + 0.08 * sin(t * 37.0)) + (snow - 0.5) * 0.16 + grain * 0.12 + streak * 0.06 + drop * 0.7;
+                float nvg = nvl * (0.92 + 0.08 * sin(t * 37.0)) + (snow - 0.5) * 0.16 + grain * 0.12 + streak * 0.06;
                 nvg = nvg * 0.85 + 0.06; // milky blacks
                 col = mix(col, vec3(nvg, nvg, nvg), _NV);
 
@@ -1630,12 +1642,11 @@ in vec2 uv0; out vec4 o;
                 col *= 0.96 + 0.04 * sin(uv.y * _SrcSize.y * 3.14159);
 
                 // Night vision: grayscale, gain pushed up, like a cheap camcorder's NightShot.
-                // Like an old tape at night: crawling with static, coarse grain, streaky lines, white dropouts, a slow flicker.
+                // Like an old tape at night: crawling with static, coarse grain, streaky lines, a slow flicker.
                 float nvl = 1.0 - exp(-luma(col) * 1.8);
                 float grain = vhash(floor(uv * _SrcSize * 0.5) + fract(t * 1.7) * 517.0) - 0.5; // 2.0 px clumps
                 float streak = vhash(vec2(row, floor(t * 24.0))) - 0.5; // whole lines a bit brighter or darker
-                float drop = step(0.9993, vhash(vec2(floor(uv.x * _SrcSize.x / 6.0), row) + floor(t * 30.0))); // white dropout dashes
-                float nvg = nvl * (0.92 + 0.08 * sin(t * 37.0)) + (snow - 0.5) * 0.16 + grain * 0.12 + streak * 0.06 + drop * 0.7;
+                float nvg = nvl * (0.92 + 0.08 * sin(t * 37.0)) + (snow - 0.5) * 0.16 + grain * 0.12 + streak * 0.06;
                 nvg = nvg * 0.85 + 0.06; // milky blacks
                 col = mix(col, vec3(nvg, nvg, nvg), _NV);
 
@@ -1709,12 +1720,11 @@ in vec2 uv0; out vec4 o;
                 col *= 0.93 + 0.07 * sin(uv.y * _SrcSize.y * 3.14159);
 
                 // Night vision: grayscale, gain pushed up, like a cheap camcorder's NightShot.
-                // Like an old tape at night: crawling with static, coarse grain, streaky lines, white dropouts, a slow flicker.
+                // Like an old tape at night: crawling with static, coarse grain, streaky lines, a slow flicker.
                 float nvl = 1.0 - exp(-luma(col) * 1.8);
                 float grain = vhash(floor(uv * _SrcSize * 0.5) + fract(t * 1.7) * 517.0) - 0.5; // 2.0 px clumps
                 float streak = vhash(vec2(row, floor(t * 24.0))) - 0.5; // whole lines a bit brighter or darker
-                float drop = step(0.9993, vhash(vec2(floor(uv.x * _SrcSize.x / 6.0), row) + floor(t * 30.0))); // white dropout dashes
-                float nvg = nvl * (0.92 + 0.08 * sin(t * 37.0)) + (snow - 0.5) * 0.16 + grain * 0.12 + streak * 0.06 + drop * 0.7;
+                float nvg = nvl * (0.92 + 0.08 * sin(t * 37.0)) + (snow - 0.5) * 0.16 + grain * 0.12 + streak * 0.06;
                 nvg = nvg * 0.85 + 0.06; // milky blacks
                 col = mix(col, vec3(nvg, nvg, nvg), _NV);
 
@@ -1744,8 +1754,8 @@ const WALL_HALF = 0.2, TRIM = 0.02, TRIM_H = 0.1;
 // Corner caps and archway beams are drawn this much thinner than they really are, so their faces sit just behind the wall or
 // pillar faces they line up with. Two faces in the same plane flicker (z-fighting); collisions still use the full size.
 const SEAM = 0.003;
-let DEBUG = true; // hold the bottom middle of the start screen for 3 s to flip it (remembered on this device)
-try { const v = localStorage.getItem('debug'); if (v !== null) DEBUG = v === '1'; } catch {}
+let DEBUG = false; // hold the bottom middle of the start screen for 3 s to flip it (remembered on this device)
+try { const v = localStorage.getItem('debugMode'); if (v !== null) DEBUG = v === '1'; } catch {}
 const ENTITY = true; // hidden switch: false = no entity (Entity.cs: BackroomsGame.entityOn) // debug/dev mode (DEBUG): (DEBUG MODE) and rooms explored on the stamp
 // Room interiors from RoomVariants.cs: [centre x, centre z, half x, half z] around the cell centre, for 4 m cells.
 const VARIANTS = [
@@ -2095,7 +2105,7 @@ function newRun() {
   const mesh = buildMesh(maze);
   const sign = [mesh.door[0] + mesh.doorN[0] * 0.17, 2.45, mesh.door[2] + mesh.doorN[1] * 0.17]; forLooks(() => g.uniform4f(U('_ExitPos'), ...sign, 0)); // its red glow
   level = makeVao(mesh.V, mesh.I); door = mesh.door; fakeDoors = mesh.fakeDoors; hideSpots = mesh.hideSpots; hidden = null; hideDir = 0; keySpot = mesh.keySpot; hasKey = false; atDoor = false;
-  ent.on = false; ent.cool = 0; ent.count = 0; ent.slammed = false; ent.seen = maze.m.map(r => r.map(() => false)); // a new tape, a new count
+  ent.on = false; ent.cool = 0; ent.count = 0; ent.slammed = false; ent.omened = false; ent.omen = 0; ent.seen = maze.m.map(r => r.map(() => false)); // a new tape, a new count
   document.getElementById('keyhud').hidden = true; document.getElementById('act').hidden = true;
   solids = mesh.solids; corners = mesh.corners;
   me.x = (maze.start[0] + .5) * S; me.z = (maze.start[1] + .5) * S; me.pitch = 0;
@@ -2230,7 +2240,7 @@ document.getElementById('easy').addEventListener('click', () => begin(true));
 // The entity (Entity.cs does the same). A slam somewhere out of sight once you've explored 20% of the rooms; at 25% it
 // appears a few rooms behind you and follows the maze toward you, lit or dark, a bit faster than walking but slower
 // than running. Get ENT_LOSE rooms ahead and it loses you and fades (and comes back after a while). If it reaches you, the tape ends.
-const ENT_SLAM = 0.20, ENT_WAKE = 0.25, ENT_SPEED = 3.4, ENT_REACH = 0.9, ENT_COOLDOWN = 25, ENT_LOSE = 6;
+const ENT_OMEN = 0.23, ENT_SLAM = 0.20, ENT_WAKE = 0.25, ENT_SPEED = 3.4, ENT_REACH = 0.9, ENT_COOLDOWN = 25, ENT_LOSE = 6;
 // A stick man of black wire, crooked and alien: hunched, head jutting and tilted, one shoulder low, arms hanging past the
 // knees, the right knee bent the wrong way. Joints [x, y, z] in metres, local +z faces you; bones [joint, joint, radius],
 // each drawn as two strands twisted round each other. Same numbers in Entity.cs.
@@ -2264,6 +2274,8 @@ function entityStep(dt) {
   const explored = ent.count / (W * D);
   if (!ENTITY || easy) return; // still counted, for the debug readout
   if (explored >= ENT_SLAM && !ent.slammed) { ent.slammed = true; slam(); }
+  if (explored >= ENT_OMEN && !ent.omened) { ent.omened = true; ent.omen = 5; } // the lights around you stutter for 5 s
+  ent.omen = Math.max(0, (ent.omen || 0) - dt);
   ent.cool -= dt;
   if (!ent.on) {
     if (explored < ENT_WAKE || ent.cool > 0) return;
@@ -2399,14 +2411,14 @@ function stamp() { // real time and date, year pinned to 1996 for the found-foot
   const d = new Date(), h = d.getHours();
   clock.textContent = (h < 12 ? 'AM ' : 'PM ') + ((h % 12) || 12) + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0');
   document.getElementById('date').textContent = MONTHS[d.getMonth()] + ' ' + String(d.getDate()).padStart(2, '0') + ' 1996';
-  if (DEBUG) document.getElementById('debug').textContent = '(DEBUG MODE) EXPLORED ' + Math.floor(ent.count / (W * D) * 100) + '%'; // slam at 20, entity at 25
+  if (DEBUG) document.getElementById('debug').textContent = '(DEBUG MODE) EXPLORED ' + Math.floor(ent.count / (W * D) * 100) + '%'; // slam at 20, lights stutter at 23, entity at 25
 }
 stamp();
 const showDebug = () => document.getElementById('debug').hidden = document.getElementById('debugbr').hidden = !DEBUG;
 showDebug();
 { // hidden debug switch on the start screen
   const el = document.getElementById('dbghold'); let timer;
-  el.addEventListener('pointerdown', () => { timer = setTimeout(() => { DEBUG = !DEBUG; showDebug(); popup(DEBUG ? 'DEBUG ON' : 'DEBUG OFF'); try { localStorage.setItem('debug', DEBUG ? '1' : '0'); } catch {} }, 3000); });
+  el.addEventListener('pointerdown', () => { timer = setTimeout(() => { DEBUG = !DEBUG; showDebug(); popup(DEBUG ? 'DEBUG ON' : 'DEBUG OFF'); try { localStorage.setItem('debugMode', DEBUG ? '1' : '0'); } catch {} }, 3000); });
   for (const e of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(e, () => clearTimeout(timer));
   el.addEventListener('contextmenu', e => e.preventDefault()); // a long press on a phone would open the menu
 }
@@ -2467,6 +2479,7 @@ function frame(now) {
   g.useProgram(prog); g.bindFramebuffer(g.FRAMEBUFFER, tape.fb); g.viewport(0, 0, tape.w, tape.h); g.enable(g.DEPTH_TEST); g.enable(g.CULL_FACE);
   g.uniformMatrix4fv(U('VP'), false, viewProj(cam, camYaw, camPitch, canvas.width / canvas.height, camRoll));
   g.uniform3f(U('_Cam'), ...cam); g.uniform1f(U('_T'), (now - t0) / 1000); g.uniform1f(U('_NV'), nv ? 1 : 0);
+  g.uniform1f(U('_Omen'), Math.min(1, (ent.omen || 0) * 2, (5 - (ent.omen || 0)) * 2) * (ent.omen > 0 ? 1 : 0)); // fades in and out over half a second
   g.uniform4f(U('_EntPos'), ent.x, 1.5 - ent.fade * 0.6, ent.z, ent.on ? 1 - Math.min(1, ent.fade / 1.5) : 0); // its black aura
   g.clear(g.COLOR_BUFFER_BIT | g.DEPTH_BUFFER_BIT);
   g.bindVertexArray(level.vao); g.drawElements(g.TRIANGLES, level.n, g.UNSIGNED_INT, 0);

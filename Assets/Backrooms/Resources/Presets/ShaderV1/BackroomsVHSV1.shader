@@ -92,12 +92,11 @@ Shader "Backrooms/VHS V1"
                 col *= 0.93 + 0.07 * sin(uv.y * _SrcSize.y * 3.14159);
 
                 // Night vision: grayscale, gain pushed up, like a cheap camcorder's NightShot.
-                // Like an old tape at night: crawling with static, coarse grain, streaky lines, white dropouts, a slow flicker.
+                // Like an old tape at night: crawling with static, coarse grain, streaky lines, a slow flicker.
                 float nvl = 1 - exp(-luma(col) * 1.8);
                 float grain = vhash(floor(uv * _SrcSize * 0.5) + frac(t * 1.7) * 517) - 0.5; // 2 px clumps
                 float streak = vhash(float2(row, floor(t * 24))) - 0.5; // whole lines a bit brighter or darker
-                float drop = step(0.9993, vhash(float2(floor(uv.x * _SrcSize.x / 6), row) + floor(t * 30))); // white dropout dashes
-                float nvg = nvl * (0.92 + 0.08 * sin(t * 37)) + (snow - 0.5) * 0.16 + grain * 0.12 + streak * 0.06 + drop * 0.7;
+                float nvg = nvl * (0.92 + 0.08 * sin(t * 37)) + (snow - 0.5) * 0.16 + grain * 0.12 + streak * 0.06;
                 nvg = nvg * 0.85 + 0.06; // milky blacks
                 col = lerp(col, float3(nvg, nvg, nvg), _NV);
 

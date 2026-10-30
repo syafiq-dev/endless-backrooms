@@ -6,7 +6,7 @@ using UnityEngine;
 // BackroomsGame adds this when entityOn is ticked and calls NewRun for every maze.
 public class Entity : MonoBehaviour
 {
-    public float slamAt = 0.20f, wakeAt = 0.25f, speed = 3.4f, reach = 0.9f, cooldown = 25f;
+    public float omenAt = 0.23f, slamAt = 0.20f, wakeAt = 0.25f, speed = 3.4f, reach = 0.9f, cooldown = 25f;
     public int loseRooms = 6;
     public static float Explored; // share of rooms you've been in this run, shown in debug mode
 
@@ -16,7 +16,8 @@ public class Entity : MonoBehaviour
     int[,] m;
     bool[,] seen;
     int count;
-    bool on, slammed;
+    bool on, slammed, omened;
+    float omen; // seconds left of the lights stuttering around you
     float cool, fade, cell;
     Transform body;
     Mesh mesh;
@@ -43,7 +44,7 @@ public class Entity : MonoBehaviour
 
     public void NewRun(int[,] maze)
     {
-        m = maze; seen = new bool[m.GetLength(0), m.GetLength(1)]; count = 0; Explored = 0; slammed = false; on = false; cool = 0;
+        m = maze; seen = new bool[m.GetLength(0), m.GetLength(1)]; count = 0; Explored = 0; slammed = false; omened = false; omen = 0; Shader.SetGlobalFloat("_Omen", 0); on = false; cool = 0;
         if (body) body.gameObject.SetActive(false);
     }
 
@@ -66,6 +67,9 @@ public class Entity : MonoBehaviour
         float explored = Explored = (float)count / (W * D);
         if (BackroomsGame.Easy) return; // still counted, for the debug readout
         if (explored >= slamAt && !slammed) { slammed = true; sfx.PlayOneShot(slam, 0.9f); } // the warning
+        if (explored >= omenAt && !omened) { omened = true; omen = 5; } // the lights around you stutter for 5 s
+        omen = Mathf.Max(0, omen - Time.deltaTime);
+        Shader.SetGlobalFloat("_Omen", omen > 0 ? Mathf.Min(1, omen * 2, (5 - omen) * 2) : 0); // fades in and out over half a second
         cool -= Time.deltaTime;
         var d = Maze.Distances(m, pc);
         if (!on)

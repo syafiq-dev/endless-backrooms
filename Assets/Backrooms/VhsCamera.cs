@@ -123,7 +123,7 @@ public class VhsCamera : MonoBehaviour
         {
             debugStyle ??= new GUIStyle(style) { normal = { textColor = new Color(0.3f, 1f, 0.35f, 0.95f) } };
             debugStyle.fontSize = style.fontSize / 2; // half the stamp's size
-            GUI.Label(new Rect(m, Screen.height - m - style.fontSize * 3.3f, Screen.width, style.fontSize), "(DEBUG MODE) EXPLORED " + Mathf.FloorToInt(Entity.Explored * 100) + "%", debugStyle); // slam at 20, entity at 25
+            GUI.Label(new Rect(m, Screen.height - m - style.fontSize * 3.3f, Screen.width, style.fontSize), "(DEBUG MODE) EXPLORED " + Mathf.FloorToInt(Entity.Explored * 100) + "%", debugStyle); // slam at 20, lights stutter at 23, entity at 25
         }
     }
 
