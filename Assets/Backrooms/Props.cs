@@ -113,8 +113,11 @@ public static class Props
     {
         new Hide { halfWidth = 0.3f, halfDepth = 0.25f, depth = 0.25f, cam = new Vector3(0, 1.5f, 0.22f), step = 1.0f, parts = new[] {
             new Part(0, 0.95f, 0.25f, 0.3f, 0.95f, 0.25f, Metal), new Part(0.22f, 1.0f, 0.515f, 0.012f, 0.06f, 0.015f, Dark),
-            new Part(0, 1.25f, 0.505f, 0.285f, 0.022f, 0.006f, Dark), new Part(0, 1.34f, 0.505f, 0.285f, 0.022f, 0.006f, Dark), new Part(0, 1.43f, 0.505f, 0.285f, 0.022f, 0.006f, Dark), new Part(0, 1.52f, 0.505f, 0.285f, 0.022f, 0.006f, Dark), new Part(0, 1.61f, 0.505f, 0.285f, 0.022f, 0.006f, Dark), new Part(0, 1.7f, 0.505f, 0.285f, 0.022f, 0.006f, Dark), // vent slats
-            new Part(0, 0.6f, 0.49f, 0.29f, 0.6f, 0.004f, Dark), new Part(0, 1.83f, 0.49f, 0.29f, 0.07f, 0.004f, Dark), // inside of the door, around the vent
+            new Part(0, 1.27f, 0.505f, 0.2f, 0.022f, 0.006f, Dark), new Part(0, 1.35f, 0.505f, 0.2f, 0.022f, 0.006f, Dark), new Part(0, 1.43f, 0.505f, 0.2f, 0.022f, 0.006f, Dark), new Part(0, 1.51f, 0.505f, 0.2f, 0.022f, 0.006f, Dark), new Part(0, 1.59f, 0.505f, 0.2f, 0.022f, 0.006f, Dark), new Part(0, 1.67f, 0.505f, 0.2f, 0.022f, 0.006f, Dark), // vent slats in a square peek window
+            new Part(0, 1.715f, 0.507f, 0.215f, 0.015f, 0.005f, Dark), new Part(0, 1.235f, 0.507f, 0.215f, 0.015f, 0.005f, Dark),
+            new Part(-0.215f, 1.475f, 0.507f, 0.015f, 0.24f, 0.005f, Dark), new Part(0.215f, 1.475f, 0.507f, 0.015f, 0.24f, 0.005f, Dark), // window frame
+            new Part(0, 0.625f, 0.49f, 0.29f, 0.625f, 0.004f, Dark), new Part(0, 1.793f, 0.49f, 0.29f, 0.093f, 0.004f, Dark),
+            new Part(-0.245f, 1.475f, 0.49f, 0.045f, 0.225f, 0.004f, Dark), new Part(0.245f, 1.475f, 0.49f, 0.045f, 0.225f, 0.004f, Dark), // inside of the door, around the window
             new Part(-0.29f, 0.95f, 0.25f, 0.004f, 0.95f, 0.25f, Dark), new Part(0.29f, 0.95f, 0.25f, 0.004f, 0.95f, 0.25f, Dark),
             new Part(0, 1.89f, 0.25f, 0.3f, 0.004f, 0.25f, Dark), new Part(0, 0.95f, 0.01f, 0.3f, 0.95f, 0.004f, Dark) } },
         new Hide { halfWidth = 0.72f, halfDepth = 0.38f, depth = 0.42f, cam = new Vector3(0.2f, 0.45f, 0.42f), step = 1.3f, parts = KeyItems[0].parts }, // the office desk

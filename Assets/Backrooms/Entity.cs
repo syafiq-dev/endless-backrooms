@@ -55,7 +55,7 @@ public class Entity : MonoBehaviour
         float danger = on ? Mathf.Clamp01((15 - Vector2.Distance(new Vector2(body.position.x, body.position.z), new Vector2(player.position.x, player.position.z))) / 13) * (1 - Mathf.Min(1, fade / 1.5f)) : 0;
         Shader.SetGlobalFloat("_Danger", danger);
         crackle.volume = danger * danger * 0.6f;
-        bool hidden = PlayerController.Hidden >= 0;
+        bool hidden = PlayerController.InSpot; // all the way in: while you're still climbing in it can see you
         if (hidden && !wasHidden) { sawHide = on && Vector3.Distance(body.position, player.position) < 3.5f; linger = 0; } // too close: it saw you go in
         wasHidden = hidden;
         bool fooled = hidden && !sawHide; // it searches your room, waits, gives up

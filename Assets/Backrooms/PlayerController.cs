@@ -11,7 +11,12 @@ public class PlayerController : MonoBehaviour
     [Range(0, 2)] public float sway = 1f; // handheld camcorder wobble; 0 = tripod-steady
 
     public static bool RunHeld; // RUN button toggle (VhsCamera)
-    public static int Hidden = -1; // index into BackroomsGame.HideSpots while you're in one
+    public static int Hidden = -1; // index into BackroomsGame.HideSpots while you're in one (or getting in or out)
+    public static int HideDir; // 1 = getting in, -1 = getting out, 0 = still
+    public static bool InSpot => Hidden >= 0 && HideDir == 0; // all the way in
+    public const float HideIn = 2, HideOut = 1; // seconds: you can't vanish at the last second
+    float hideT, hideFromYaw;
+    Vector3 hideFrom;
     CharacterController cc;
     Transform cam;
     AudioSource steps;
@@ -30,18 +35,22 @@ public class PlayerController : MonoBehaviour
     }
 
     // Hiding: stand in a locker or crawl under a desk (BackroomsGame.Act). You can look around a little but not move.
+    // Getting in: walk up to it facing it (crouching for a desk), then step in and turn round (or crawl under).
+    // Getting out is the second half played back, facing the room.
     public void Hide(int i)
     {
-        var h = BackroomsGame.HideSpots[i];
-        Hidden = i; cc.enabled = false;
-        transform.SetPositionAndRotation(h.cam - Vector3.up * camY, Quaternion.Euler(0, h.yaw, 0));
-        pitch = 0;
+        Hidden = i; HideDir = 1; hideT = 0; cc.enabled = false;
+        hideFrom = cam.position; hideFromYaw = yaw;
     }
 
-    public void Leave()
+    public void Leave() { if (HideDir == 0) HideDir = -1; }
+
+    (Vector3 eye, float yaw) HidePose(BackroomsGame.HideSpot h, float t) // t: 0 = where you started, 0.5 = at its front, 1 = in
     {
-        var h = BackroomsGame.HideSpots[Hidden];
-        Hidden = -1; transform.position = h.step; cc.enabled = true;
+        var mid = new Vector3(h.step.x, h.kind == 1 ? 0.9f : 1.5f, h.step.z);
+        if (t < 0.5f) { float k = Mathf.SmoothStep(0, 1, t * 2); return (Vector3.Lerp(hideFrom, mid, k), Mathf.LerpAngle(hideFromYaw, h.yaw + 180, k)); }
+        float k2 = Mathf.SmoothStep(0, 1, t * 2 - 1);
+        return (Vector3.Lerp(mid, h.cam, k2), Mathf.LerpAngle(h.yaw + 180, h.yaw, k2));
     }
 
     // Footstep sounds, generated like AmbientHum: a soft carpet thud (smoothed brown noise), and a wet squelch
@@ -93,11 +102,29 @@ public class PlayerController : MonoBehaviour
         move = Vector2.ClampMagnitude(move, 1f);
         aimYaw += look.x;
         pitch = Mathf.Clamp(pitch - look.y, -80f, 80f);
-        if (Hidden >= 0) // peek out, but stay in
+        if (Hidden < 0) HideDir = 0;
+        else
         {
             var h = BackroomsGame.HideSpots[Hidden];
-            float a = h.kind == 0 ? 17 : 57;
-            move = Vector2.zero; aimYaw = h.yaw + Mathf.Clamp(Mathf.DeltaAngle(h.yaw, aimYaw), -a, a); pitch = Mathf.Clamp(pitch, -17, 17);
+            move = Vector2.zero;
+            if (HideDir != 0)
+            {
+                hideT += HideDir * Time.deltaTime / (HideDir > 0 ? HideIn : HideOut);
+                if (HideDir > 0 && hideT >= 1) { hideT = 1; HideDir = 0; }
+                if (HideDir < 0 && hideT <= 0.5f) // out, standing at its front
+                {
+                    Hidden = -1; HideDir = 0;
+                    transform.SetPositionAndRotation(h.step, Quaternion.Euler(0, h.yaw, 0));
+                    aimYaw = yaw = h.yaw; yawSpin = 0; cc.enabled = true;
+                }
+            }
+            if (Hidden >= 0)
+            {
+                var (eye, ry) = HidePose(h, hideT);
+                transform.position = eye - Vector3.up * camY;
+                if (HideDir != 0) { aimYaw = yaw = HideDir < 0 ? h.yaw : ry; yawSpin = 0; pitch = pitchView = 0; pitchSpin = 0; transform.rotation = Quaternion.Euler(0, yaw, 0); }
+                else { float a = h.kind == 0 ? 17 : 57; aimYaw = h.yaw + Mathf.Clamp(Mathf.DeltaAngle(h.yaw, aimYaw), -a, a); pitch = Mathf.Clamp(pitch, -17, 17); } // peek out, but stay in
+            }
         }
         if (Mathf.Abs(Mathf.DeltaAngle(transform.eulerAngles.y, yaw)) > 0.01f) aimYaw = yaw = transform.eulerAngles.y; // something else turned us (new run): snap
         float dt = Mathf.Min(Time.deltaTime, 0.05f);

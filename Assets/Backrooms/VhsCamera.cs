@@ -99,7 +99,7 @@ public class VhsCamera : MonoBehaviour
         // Key item prompt (also E on a keyboard) and the KEY marker once you have it.
         float sw = Screen.height * 0.32f, sh = Screen.height * 0.1f;
         bool hidden = PlayerController.Hidden >= 0;
-        if ((hidden || BackroomsGame.NearSpot >= 0 || BackroomsGame.CanSearch) && GUI.Button(new Rect((Screen.width - sw) / 2, Screen.height * 0.7f, sw, sh), hidden ? "LEAVE" : BackroomsGame.NearSpot >= 0 ? "HIDE" : "SEARCH"))
+        if (PlayerController.HideDir == 0 && (hidden || BackroomsGame.NearSpot >= 0 || BackroomsGame.CanSearch) && GUI.Button(new Rect((Screen.width - sw) / 2, Screen.height * 0.7f, sw, sh), hidden ? "LEAVE" : BackroomsGame.NearSpot >= 0 ? "HIDE" : "SEARCH"))
             FindAnyObjectByType<BackroomsGame>()?.Act();
         if (Time.time - BackroomsGame.PopupAt < 1.5f) // look names, LOCKED, GOT KEY
         {
