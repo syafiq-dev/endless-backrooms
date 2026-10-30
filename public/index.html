@@ -88,7 +88,7 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 <script id="fs1" type="x-shader">#version 300 es
 precision highp float;
 uniform float _CellSize, _WallHeight, _FogDensity, _T, _Seed, _NV;
-uniform float _Omen; uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
+uniform float _Omen, _Dim; uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 #define _WorldSpaceCameraPos _Cam
@@ -309,6 +309,9 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 
                 vec3 lightCol = mix(vec3(1.0, 0.75, 0.45), vec3(1.0, 0.94, 0.70), power); // low power runs warm
                 vec3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
+                // Dim runs: the whole map on failing power, each area somewhere between 2.0% and 40.0%, drifting smoothly.
+                float dimK = mix(1.0, mix(0.02, 0.4, vnoise(p.xz / s * 0.6 + _Seed * 3.1 + 20.0)), _Dim);
+                col *= dimK;
                 // The omen: within ~12.0 m of you the lights stutter between dim and dimmer.
                 float stutter = hash(vec2(floor(t * 13.0), 7.3)) > 0.45 ? 0.35 : 0.8;
                 col *= 1.0 - _Omen * smoothstep(14.0, 5.0, length(_WorldSpaceCameraPos - wpos)) * (1.0 - stutter);
@@ -328,7 +331,7 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 vec3 ea = _WorldSpaceCameraPos + rd * clamp(dot(_EntPos.xyz - _WorldSpaceCameraPos, rd) / dot(rd, rd), 0., 1.) - _EntPos.xyz;
                 ea.y *= 0.55; // taller than it is wide
                 float aura = _EntPos.w * exp(-dot(ea, ea) * 1.6) * (0.7 + 0.3 * vnoise(wpos.xz * 4.0 + wpos.y * 3.0 + t * 3.0)); // smoky edge
-                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam)) * (1.0 - 0.95 * aura);
+                return mix(_FogColor.rgb * dimK * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam)) * (1.0 - 0.95 * aura);
             }
 
 
@@ -341,7 +344,7 @@ void main() {
 <script id="fs2" type="x-shader">#version 300 es
 precision highp float;
 uniform float _CellSize, _WallHeight, _FogDensity, _T, _Seed, _NV;
-uniform float _Omen; uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
+uniform float _Omen, _Dim; uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 #define _WorldSpaceCameraPos _Cam
@@ -562,6 +565,9 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 
                 vec3 lightCol = mix(vec3(1.0, 0.75, 0.45), vec3(1.0, 0.94, 0.70), power); // low power runs warm
                 vec3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
+                // Dim runs: the whole map on failing power, each area somewhere between 2.0% and 40.0%, drifting smoothly.
+                float dimK = mix(1.0, mix(0.02, 0.4, vnoise(p.xz / s * 0.6 + _Seed * 3.1 + 20.0)), _Dim);
+                col *= dimK;
                 // The omen: within ~12.0 m of you the lights stutter between dim and dimmer.
                 float stutter = hash(vec2(floor(t * 13.0), 7.3)) > 0.45 ? 0.35 : 0.8;
                 col *= 1.0 - _Omen * smoothstep(14.0, 5.0, length(_WorldSpaceCameraPos - wpos)) * (1.0 - stutter);
@@ -581,7 +587,7 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 vec3 ea = _WorldSpaceCameraPos + rd * clamp(dot(_EntPos.xyz - _WorldSpaceCameraPos, rd) / dot(rd, rd), 0., 1.) - _EntPos.xyz;
                 ea.y *= 0.55; // taller than it is wide
                 float aura = _EntPos.w * exp(-dot(ea, ea) * 1.6) * (0.7 + 0.3 * vnoise(wpos.xz * 4.0 + wpos.y * 3.0 + t * 3.0)); // smoky edge
-                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam)) * (1.0 - 0.95 * aura);
+                return mix(_FogColor.rgb * dimK * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam)) * (1.0 - 0.95 * aura);
             }
 
 
@@ -594,7 +600,7 @@ void main() {
 <script id="fs3" type="x-shader">#version 300 es
 precision highp float;
 uniform float _CellSize, _WallHeight, _FogDensity, _T, _Seed, _NV;
-uniform float _Omen; uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
+uniform float _Omen, _Dim; uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 #define _WorldSpaceCameraPos _Cam
@@ -815,6 +821,9 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 
                 vec3 lightCol = mix(vec3(0.9, 0.85, 0.6), vec3(0.92, 1.0, 0.9), power); // cold fluorescent tubes // low power runs warm
                 vec3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
+                // Dim runs: the whole map on failing power, each area somewhere between 2.0% and 40.0%, drifting smoothly.
+                float dimK = mix(1.0, mix(0.02, 0.4, vnoise(p.xz / s * 0.6 + _Seed * 3.1 + 20.0)), _Dim);
+                col *= dimK;
                 // The omen: within ~12.0 m of you the lights stutter between dim and dimmer.
                 float stutter = hash(vec2(floor(t * 13.0), 7.3)) > 0.45 ? 0.35 : 0.8;
                 col *= 1.0 - _Omen * smoothstep(14.0, 5.0, length(_WorldSpaceCameraPos - wpos)) * (1.0 - stutter);
@@ -836,7 +845,7 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 vec3 ea = _WorldSpaceCameraPos + rd * clamp(dot(_EntPos.xyz - _WorldSpaceCameraPos, rd) / dot(rd, rd), 0., 1.) - _EntPos.xyz;
                 ea.y *= 0.55; // taller than it is wide
                 float aura = _EntPos.w * exp(-dot(ea, ea) * 1.6) * (0.7 + 0.3 * vnoise(wpos.xz * 4.0 + wpos.y * 3.0 + t * 3.0)); // smoky edge
-                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam)) * (1.0 - 0.95 * aura);
+                return mix(_FogColor.rgb * dimK * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam)) * (1.0 - 0.95 * aura);
             }
 
 
@@ -849,7 +858,7 @@ void main() {
 <script id="fs4" type="x-shader">#version 300 es
 precision highp float;
 uniform float _CellSize, _WallHeight, _FogDensity, _T, _Seed, _NV;
-uniform float _Omen; uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
+uniform float _Omen, _Dim; uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 #define _WorldSpaceCameraPos _Cam
@@ -1070,6 +1079,9 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 
                 vec3 lightCol = mix(vec3(1.0, 0.55, 0.25), vec3(1.0, 0.72, 0.42), power); // amber // low power runs warm
                 vec3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
+                // Dim runs: the whole map on failing power, each area somewhere between 2.0% and 40.0%, drifting smoothly.
+                float dimK = mix(1.0, mix(0.02, 0.4, vnoise(p.xz / s * 0.6 + _Seed * 3.1 + 20.0)), _Dim);
+                col *= dimK;
                 // The omen: within ~12.0 m of you the lights stutter between dim and dimmer.
                 float stutter = hash(vec2(floor(t * 13.0), 7.3)) > 0.45 ? 0.35 : 0.8;
                 col *= 1.0 - _Omen * smoothstep(14.0, 5.0, length(_WorldSpaceCameraPos - wpos)) * (1.0 - stutter);
@@ -1089,7 +1101,7 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 vec3 ea = _WorldSpaceCameraPos + rd * clamp(dot(_EntPos.xyz - _WorldSpaceCameraPos, rd) / dot(rd, rd), 0., 1.) - _EntPos.xyz;
                 ea.y *= 0.55; // taller than it is wide
                 float aura = _EntPos.w * exp(-dot(ea, ea) * 1.6) * (0.7 + 0.3 * vnoise(wpos.xz * 4.0 + wpos.y * 3.0 + t * 3.0)); // smoky edge
-                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam)) * (1.0 - 0.95 * aura);
+                return mix(_FogColor.rgb * dimK * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam)) * (1.0 - 0.95 * aura);
             }
 
 
@@ -1102,7 +1114,7 @@ void main() {
 <script id="fs5" type="x-shader">#version 300 es
 precision highp float;
 uniform float _CellSize, _WallHeight, _FogDensity, _T, _Seed, _NV;
-uniform float _Omen; uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
+uniform float _Omen, _Dim; uniform vec4 _FogColor, _ExitPos, _EntPos; uniform vec3 _Cam; uniform vec2 _Screen;
 uniform sampler2D _WallTex, _CarpetTex;
 in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 #define _WorldSpaceCameraPos _Cam
@@ -1323,6 +1335,9 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
 
                 vec3 lightCol = mix(vec3(1.0, 0.75, 0.45), vec3(1.0, 0.94, 0.70), power); // low power runs warm
                 vec3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
+                // Dim runs: the whole map on failing power, each area somewhere between 2.0% and 40.0%, drifting smoothly.
+                float dimK = mix(1.0, mix(0.02, 0.4, vnoise(p.xz / s * 0.6 + _Seed * 3.1 + 20.0)), _Dim);
+                col *= dimK;
                 // The omen: within ~12.0 m of you the lights stutter between dim and dimmer.
                 float stutter = hash(vec2(floor(t * 13.0), 7.3)) > 0.45 ? 0.35 : 0.8;
                 col *= 1.0 - _Omen * smoothstep(14.0, 5.0, length(_WorldSpaceCameraPos - wpos)) * (1.0 - stutter);
@@ -1343,7 +1358,7 @@ in vec3 wp; in vec3 wn; in float wm; out vec4 o;
                 vec3 ea = _WorldSpaceCameraPos + rd * clamp(dot(_EntPos.xyz - _WorldSpaceCameraPos, rd) / dot(rd, rd), 0., 1.) - _EntPos.xyz;
                 ea.y *= 0.55; // taller than it is wide
                 float aura = _EntPos.w * exp(-dot(ea, ea) * 1.6) * (0.7 + 0.3 * vnoise(wpos.xz * 4.0 + wpos.y * 3.0 + t * 3.0)); // smoky edge
-                return mix(_FogColor.rgb * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam)) * (1.0 - 0.95 * aura);
+                return mix(_FogColor.rgb * dimK * mix(0.03, 1.0, clamp(amb * 1.2, 0., 1.)) * (1.0 + _NV * 4.0), col, exp(-_FogDensity * dCam)) * (1.0 - 0.95 * aura);
             }
 
 
@@ -1814,13 +1829,17 @@ const KEY_ITEMS = [[KEY_DESK, 0.42, 0.72, 0.38], [KEY_DRAWER, 0.25, 0.3, 0.23], 
 // empty room. Step up to one and HIDE (E). The locker has an inside (dark panels, a slatted vent at eye height) that only
 // shows from in there. If the entity didn't see you go in, it comes to the room, waits, and gives up.
 const HIDE_CHANCE = 0.08; // per empty room with a wall
-const LOCKER = [[0, 0.95, 0.25, 0.3, 0.95, 0.25, 1], [0.22, 1.0, 0.515, 0.012, 0.06, 0.015, 4],
+const LOCKER = [[-0.295, 0.95, 0.25, 0.005, 0.95, 0.25, 1], [0.295, 0.95, 0.25, 0.005, 0.95, 0.25, 1], [0, 1.895, 0.25, 0.3, 0.005, 0.25, 1], [0, 0.95, 0.005, 0.3, 0.95, 0.005, 1], // the shell, open at the front
+  [-0.29, 0.95, 0.25, 0.004, 0.95, 0.25, 4], [0.29, 0.95, 0.25, 0.004, 0.95, 0.25, 4], [0, 1.89, 0.25, 0.3, 0.004, 0.25, 4], [0, 0.95, 0.01, 0.3, 0.95, 0.004, 4]]; // dark inside
+// Its door (drawDoors), in the same space: a sheet with a square peek window you see out of from inside, vent slats across it, a handle on the left.
+const LOCKER_DOOR = [[0, 0.625, 0.497, 0.3, 0.625, 0.003, 1], [0, 1.8, 0.497, 0.3, 0.1, 0.003, 1], [-0.25, 1.475, 0.497, 0.05, 0.225, 0.003, 1], [0.25, 1.475, 0.497, 0.05, 0.225, 0.003, 1],
+  [0.22, 1.0, 0.515, 0.012, 0.06, 0.015, 4], [0, 1.475, 0.497, 0.2, 0.225, 0, 1], // handle; behind the slats a sheet seen only from outside (depth 0: one face)
   ...[1.27, 1.35, 1.43, 1.51, 1.59, 1.67].map(y => [0, y, 0.505, 0.2, 0.022, 0.006, 4]), // vent slats in a square peek window (gaps between them from inside)
   [0, 1.715, 0.507, 0.215, 0.015, 0.005, 4], [0, 1.235, 0.507, 0.215, 0.015, 0.005, 4], [-0.215, 1.475, 0.507, 0.015, 0.24, 0.005, 4], [0.215, 1.475, 0.507, 0.015, 0.24, 0.005, 4], // window frame
-  [0, 0.625, 0.49, 0.29, 0.625, 0.004, 4], [0, 1.793, 0.49, 0.29, 0.093, 0.004, 4], [-0.245, 1.475, 0.49, 0.045, 0.225, 0.004, 4], [0.245, 1.475, 0.49, 0.045, 0.225, 0.004, 4], // inside of the door, around the window
-  [-0.29, 0.95, 0.25, 0.004, 0.95, 0.25, 4], [0.29, 0.95, 0.25, 0.004, 0.95, 0.25, 4], [0, 1.89, 0.25, 0.3, 0.004, 0.25, 4], [0, 0.95, 0.01, 0.3, 0.95, 0.004, 4]];
+  [0, 0.625, 0.49, 0.29, 0.625, 0.004, 4], [0, 1.793, 0.49, 0.29, 0.093, 0.004, 4], [-0.245, 1.475, 0.49, 0.045, 0.225, 0.004, 4], [0.245, 1.475, 0.49, 0.045, 0.225, 0.004, 4]]; // inside of the door, around the window
+const DOOR_HINGE = [-0.3, 0.5], DOOR_OPEN = 1.9; // hinge x, z (local -x is on your right as you face it); radians fully open
 // parts, half width, half depth, centre from the wall, camera [x, y, z] when hiding, where you step out to
-const HIDES = [[LOCKER, 0.3, 0.25, 0.25, [0, 1.5, 0.22], 1.0], [KEY_DESK, 0.72, 0.38, 0.42, [0.2, 0.45, 0.42], 1.3]];
+const HIDES = [[LOCKER, 0.3, 0.25, 0.25, [0, 1.5, 0.22], 1.2], [KEY_DESK, 0.72, 0.38, 0.42, [0.2, 0.45, 0.42], 1.3]];
 const PROP_BIG = 0.25; // share of random furniture that comes out slightly too big
 const PROP_FOOT = [0.25, 0.2, 0.65, 0.35, 0.1, 0.75, 0.45, 0.45]; // reach from the item's centre, for collisions
 // 3x3 rotations (row-major) for placing props
@@ -2033,7 +2052,7 @@ function buildMesh({ m, exit, key, long, arch, funnel }) {
     const at = [(x+.5)*S - hx*dd, 0, (z+.5)*S - hz*dd], R = [hz,0,hx, 0,1,0, -hx,0,hz], c = mv(R, cam);
     for (const pt of parts) part(at, R, pt);
     solids[x][z].push([at[0] + hx*depth, at[2] + hz*depth, hx ? d2 : w, hx ? w : d2]);
-    hideSpots.push({ kind, cam: [at[0] + c[0], c[1], at[2] + c[2]], out: [at[0] + hx*out, at[2] + hz*out], yaw: Math.atan2(hx, hz) });
+    hideSpots.push({ kind, at, R, door: 0, cam: [at[0] + c[0], c[1], at[2] + c[2]], out: [at[0] + hx*out, at[2] + hz*out], yaw: Math.atan2(hx, hz) });
   }
   o = 15;
   // Archway halls: + pillars on a 2 m grid, joined by low beams. A point gets a pillar only when every room it touches is
@@ -2111,6 +2130,7 @@ function newRun() {
   const mesh = buildMesh(maze);
   const sign = [mesh.door[0] + mesh.doorN[0] * 0.17, 2.45, mesh.door[2] + mesh.doorN[1] * 0.17]; forLooks(() => g.uniform4f(U('_ExitPos'), ...sign, 0)); // its red glow
   energy = 1; winded = false;
+  dim = Math.random() < DIM_CHANCE; forLooks(() => g.uniform1f(U('_Dim'), dim ? 1 : 0));
   level = makeVao(mesh.V, mesh.I); door = mesh.door; fakeDoors = mesh.fakeDoors; hideSpots = mesh.hideSpots; hidden = null; hideDir = 0; keySpot = mesh.keySpot; hasKey = false; atDoor = false;
   ent.on = false; ent.cool = 0; ent.count = 0; ent.slammed = false; ent.omened = false; ent.omen = 0; ent.seen = maze.m.map(r => r.map(() => false)); // a new tape, a new count
   document.getElementById('keyhud').hidden = true; document.getElementById('act').hidden = true;
@@ -2217,6 +2237,8 @@ let runHeld = false; // RUN toggle (phones)
 // Running energy: RUN_TIME seconds of running on a full bar; it refills in RUN_REFILL seconds while RUN is off.
 // Run it empty and you're winded: no running until it's back to a quarter.
 const RUN_TIME = 50, RUN_REFILL = 25;
+const DIM_CHANCE = 1 / 30; // super rare runs where every light is at 2-40%
+let dim = false;
 let energy = 1, winded = false;
 press(document.getElementById('runb'), () => { runHeld = !runHeld; document.getElementById('runb').classList.toggle('on', runHeld); }); // tap to toggle running
 // Footsteps: a soft carpet thud per step (heavier when running), and a wet squelch on soaked carpet.
@@ -2319,14 +2341,91 @@ function entityStep(dt) {
   if (l > 0.01) { const k = Math.min(l, ENT_SPEED * dt); ent.x += dx / l * k; ent.z += dz / l * k; }
   if (!fooled && Math.hypot(me.x - ent.x, me.z - ent.z) < ENT_REACH + (hidden ? 0.6 : 0)) caught(); // it reaches into your hiding spot
 }
-function caught() { // the tape cuts out and a new one starts
-  ent.on = false; fading = true; fade.classList.add('on'); popup('TAPE ENDS');
-  setTimeout(() => { newRun(); fade.classList.remove('on'); fading = false; }, 1600);
+// Caught: a jumpscare (one of three, picked at random), then a hard cut to black and TAPE ENDS.
+// 0 lunge: it snaps into the lens. 1 knocked down: the camera hits the floor and it leans over you. 2 strobe: it flickers in and out, closer each time.
+const SCARE_LEN = [0.75, 1.2, 1.0];
+let scare = null;
+function caught(kind = rnd(3)) {
+  fading = true; ent.fade = 0;
+  const dx = ent.x - me.x, dz = ent.z - me.z, l = Math.hypot(dx, dz) || 1;
+  scare = { kind, t: 0, d: [dx / l, dz / l], yaw: me.vy };
+  screech(kind);
+}
+function endScare() { // the hard cut
+  scare = null; ent.on = false; ent.lift = 0;
+  fade.style.transition = 'none'; fade.classList.add('on'); popup('TAPE ENDS');
+  setTimeout(() => { newRun(); fade.style.transition = ''; fade.classList.remove('on'); fading = false; }, 1300);
+}
+// Camera and entity during the scare: returns [cam, yaw, pitch, roll].
+function scareCam(dt) {
+  const s = scare; s.t += dt; const t = s.t, k = s.kind, face = Math.atan2(s.d[0], s.d[1]), ease = x => 1 - (1 - Math.min(1, x)) ** 3;
+  s.yaw = turnTo(s.yaw, face, Math.min(1, dt * 25)); // snap round to face it
+  let dist, lift = -0.6, y = 1.5, pitch = 0, roll = 0;
+  if (k === 0) { dist = 1.3 - 1.05 * ease(t / 0.45); roll = Math.sin(t * 80) * 0.07 * Math.min(1, t / 0.2); pitch = Math.sin(t * 63) * 0.04; }
+  else if (k === 1) { const f = ease(t / 0.3); dist = 1.0 - 0.35 * ease((t - 0.3) / 0.8); lift = 0; y = 1.5 - 1.25 * f; roll = 1.3 * f + Math.sin(t * 50) * 0.03; pitch = 1.0 * f; }
+  else { dist = 0.9 - 0.5 * ease(t / 0.8); roll = Math.sin(t * 40) * 0.05; fade.style.transition = 'none'; fade.classList.toggle('on', Math.floor(t / 0.1) % 2 === 1); } // it flickers in and out
+  ent.x = me.x + s.d[0] * dist; ent.z = me.z + s.d[1] * dist; ent.yaw = face + Math.PI + (k === 2 ? Math.sin(t * 90) * 0.2 : 0); ent.lift = lift; ent.on = true;
+  if (t >= SCARE_LEN[k]) endScare();
+  return [[me.x, y, me.z], s.yaw, pitch, roll];
+}
+// Its scream: three detuned saws shrieking and falling, wobbling fast, with a burst of noise, all clipped hard.
+function screech(kind) {
+  if (!audio) return;
+  const t = audio.currentTime, dur = SCARE_LEN[kind], out = audio.createGain(), gate = audio.createGain(), shaper = audio.createWaveShaper();
+  shaper.curve = new Float32Array(1024).map((_, i) => Math.tanh((i / 512 - 1) * 6));
+  out.gain.setValueAtTime(0.0001, t); out.gain.exponentialRampToValueAtTime(0.9, t + 0.03); out.gain.setValueAtTime(0.9, t + dur - 0.05); out.gain.linearRampToValueAtTime(0, t + dur);
+  if (kind === 2) for (let i = 0; i * 0.1 < dur; i++) gate.gain.setValueAtTime(i % 2 ? 0.08 : 1, t + i * 0.1); // stutters with the picture
+  for (const [f, det] of [[520, 0], [780, 70], [1170, -110]]) {
+    const o = audio.createOscillator(), lfo = audio.createOscillator(), lg = audio.createGain();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.45, t + dur); o.detune.value = det;
+    lfo.frequency.value = 23; lg.gain.value = f * 0.06; lfo.connect(lg).connect(o.frequency);
+    o.connect(shaper); o.start(t); o.stop(t + dur); lfo.start(t); lfo.stop(t + dur);
+  }
+  const n = audio.sampleRate * dur | 0, buf = audio.createBuffer(1, n, audio.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * 0.5;
+  const src = audio.createBufferSource(); src.buffer = buf; src.connect(shaper); src.start(t);
+  if (kind === 1) { ent.shake = 1; } // the fall
+  shaper.connect(gate).connect(out).connect(gain);
+}
+// Locker doors swing out on their right-hand hinge while you get in or out, and shut behind you. Rebuilt only while one moves.
+const doors = {};
+function drawDoors(dt) {
+  let dirty = doors.spots !== hideSpots;
+  for (const h of hideSpots) if (!h.kind) {
+    const want = hidden === h && (hideDir > 0 ? hideT > 0.3 && hideT < 0.85 : hideDir < 0) ? 1 : 0, d = want - h.door;
+    const next = Math.abs(d) < 1e-3 ? want : h.door + d * Math.min(1, dt * (want ? (hideDir < 0 ? 10 : 4) : 5)); // flung open to get out
+    if (next !== h.door) { h.door = next; dirty = true; }
+  }
+  if (dirty) {
+    doors.spots = hideSpots; const V = [], I = [], [hx, hz] = DOOR_HINGE;
+    for (const h of hideSpots) if (!h.kind) {
+      const a = h.door * DOOR_OPEN, c = Math.cos(a), sn = Math.sin(a), turn = v => mv(h.R, [v[0] * c - v[2] * sn, v[1], v[0] * sn + v[2] * c]), pin = mv(h.R, [hx, 0, hz]).map((v, j) => v + h.at[j]);
+      for (const [px, py, pz, ax, ay, az, mat] of LOCKER_DOOR) {
+        const k = [0, 1, 2, 3, 4, 5, 6, 7].map(i => turn([px + (i & 1 ? ax : -ax) - hx, py + (i & 2 ? ay : -ay), pz + (i & 4 ? az : -az) - hz]).map((v, j) => v + pin[j]));
+        for (const [f, n] of [[[0, 2, 6, 4], [-1, 0, 0]], [[1, 3, 7, 5], [1, 0, 0]], [[0, 1, 5, 4], [0, -1, 0]], [[2, 3, 7, 6], [0, 1, 0]], [[0, 1, 3, 2], [0, 0, -1]], [[4, 5, 7, 6], [0, 0, 1]]]) {
+          if (!az && n[2] < 1) continue;
+          const b = V.length / 7, nn = turn(n), q = f.map(i => k[i]); if (dot(cross(sub(q[1], q[0]), sub(q[2], q[0])), nn) < 0) [q[1], q[3]] = [q[3], q[1]]; // face the normal
+          for (const v of q) V.push(...v, ...nn, 256 + mat); I.push(b, b + 1, b + 2, b, b + 2, b + 3);
+        }
+      }
+    }
+    upload(doors, V, I);
+  }
+  if (doors.n) { g.bindVertexArray(doors.vao); g.drawElements(g.TRIANGLES, doors.n, g.UNSIGNED_INT, 0); }
+}
+function upload(o, V, I) { // a small mesh rebuilt on the CPU (the entity, the locker doors)
+  if (!o.vao) {
+    o.vao = g.createVertexArray(); g.bindVertexArray(o.vao); o.buf = g.createBuffer(); g.bindBuffer(g.ARRAY_BUFFER, o.buf);
+    [['P', 3, 0], ['N', 3, 12], ['M', 1, 24]].forEach(([n, k, off], i) => { g.enableVertexAttribArray(i); g.vertexAttribPointer(i, k, g.FLOAT, false, 28, off); });
+    o.ibuf = g.createBuffer(); g.bindBuffer(g.ELEMENT_ARRAY_BUFFER, o.ibuf);
+  }
+  g.bindVertexArray(o.vao); g.bindBuffer(g.ARRAY_BUFFER, o.buf); g.bufferData(g.ARRAY_BUFFER, new Float32Array(V), g.DYNAMIC_DRAW);
+  g.bindBuffer(g.ELEMENT_ARRAY_BUFFER, o.ibuf); g.bufferData(g.ELEMENT_ARRAY_BUFFER, new Uint32Array(I), g.DYNAMIC_DRAW); o.n = I.length;
 }
 function drawEntity() {
   if (!ent.on) return;
   const V = [], I = [], c = Math.cos(ent.yaw), sn = Math.sin(ent.yaw), sink = ent.fade * 0.6, J = entPose((performance.now() - t0) / 1000); // fades by sinking into the dark
-  const put = (p, n) => V.push(ent.x + p[0] * c + p[2] * sn, p[1] - sink, ent.z - p[0] * sn + p[2] * c, n[0] * c + n[2] * sn, n[1], -n[0] * sn + n[2] * c, 263); // 256 + 7: black wire
+  const put = (p, n) => V.push(ent.x + p[0] * c + p[2] * sn, p[1] - sink + (ent.lift || 0), ent.z - p[0] * sn + p[2] * c, n[0] * c + n[2] * sn, n[1], -n[0] * sn + n[2] * c, 263); // 256 + 7: black wire
   for (const [ja, jb, r] of ENT_BONES) {
     const A = J[ja], B = J[jb], d = norm(sub(B, A)), p = norm(Math.abs(d[1]) > 0.9 ? cross(d, [1, 0, 0]) : cross(d, [0, 1, 0])), q = cross(d, p), w = r * 0.6;
     for (const s of [1, -1]) { // two strands, swapping sides along the bone
@@ -2338,13 +2437,7 @@ function drawEntity() {
       }
     }
   }
-  if (!ent.vao) {
-    ent.vao = g.createVertexArray(); g.bindVertexArray(ent.vao); ent.buf = g.createBuffer(); g.bindBuffer(g.ARRAY_BUFFER, ent.buf);
-    [['P', 3, 0], ['N', 3, 12], ['M', 1, 24]].forEach(([n, k, off], i) => { g.enableVertexAttribArray(i); g.vertexAttribPointer(i, k, g.FLOAT, false, 28, off); });
-    ent.ibuf = g.createBuffer(); g.bindBuffer(g.ELEMENT_ARRAY_BUFFER, ent.ibuf);
-  }
-  g.bindVertexArray(ent.vao); g.bindBuffer(g.ARRAY_BUFFER, ent.buf); g.bufferData(g.ARRAY_BUFFER, new Float32Array(V), g.DYNAMIC_DRAW);
-  g.bindBuffer(g.ELEMENT_ARRAY_BUFFER, ent.ibuf); g.bufferData(g.ELEMENT_ARRAY_BUFFER, new Uint32Array(I), g.DYNAMIC_DRAW);
+  upload(ent, V, I);
   g.disable(g.CULL_FACE); g.drawElements(g.TRIANGLES, I.length, g.UNSIGNED_INT, 0); g.enable(g.CULL_FACE);
 }
 // The warning slam: something heavy hitting a wall a few rooms away. A thump, a crack and a rattle.
@@ -2422,7 +2515,7 @@ function stamp() { // real time and date, year pinned to 1996 for the found-foot
   const d = new Date(), h = d.getHours();
   clock.textContent = (h < 12 ? 'AM ' : 'PM ') + ((h % 12) || 12) + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0');
   document.getElementById('date').textContent = MONTHS[d.getMonth()] + ' ' + String(d.getDate()).padStart(2, '0') + ' 1996';
-  if (DEBUG) document.getElementById('debug').textContent = '(DEBUG MODE) EXPLORED ' + Math.floor(ent.count / (W * D) * 100) + '%'; // slam at 20, lights stutter at 23, entity at 25
+  if (DEBUG) document.getElementById('debug').textContent = '(DEBUG MODE) EXPLORED ' + Math.floor(ent.count / (W * D) * 100) + '%' + (dim ? ' DIM MAP' : ''); // slam at 20, lights stutter at 23, entity at 25
 }
 stamp();
 const showDebug = () => document.getElementById('debug').hidden = document.getElementById('debugbr').hidden = !DEBUG;
@@ -2449,7 +2542,7 @@ function frame(now) {
     if (keys.has('KeyW') || keys.has('ArrowUp')) mz += 1; if (keys.has('KeyS') || keys.has('ArrowDown')) mz -= 1;
     if (keys.has('KeyD') || keys.has('ArrowRight')) mx += 1; if (keys.has('KeyA') || keys.has('ArrowLeft')) mx -= 1;
     for (const s of touches.values()) if (s.left) { const k = Math.min(innerWidth, innerHeight) * 0.12; mx += (s.x - s.sx) / k; mz -= (s.y - s.sy) / k; }
-    if (hidden) mx = mz = 0;
+    if (hidden || scare) mx = mz = 0;
     const len = Math.hypot(mx, mz); if (len > 1) { mx /= len; mz /= len; }
     const wantRun = keys.has('ShiftLeft') || keys.has('ShiftRight') || runHeld; // phone: the RUN toggle
     const sprint = wantRun && !winded;
@@ -2494,13 +2587,14 @@ function frame(now) {
   ent.shake = Math.max(0, (ent.shake || 0) - dt * 1.5); const jolt = ent.shake * ent.shake * Math.sin(tt * 47) * 0.02;
   const camRoll = jolt + (drift(.23, .61, 1.31) * .7 * amp + Math.sin(me.bob * .5) * .6 * w) * deg - Math.max(-0.06, Math.min(0.06, me.sy * 0.015)); // leans into fast turns
   g.useProgram(prog); g.bindFramebuffer(g.FRAMEBUFFER, tape.fb); g.viewport(0, 0, tape.w, tape.h); g.enable(g.DEPTH_TEST); g.enable(g.CULL_FACE);
-  g.uniformMatrix4fv(U('VP'), false, viewProj(cam, camYaw, camPitch, canvas.width / canvas.height, camRoll));
-  g.uniform3f(U('_Cam'), ...cam); g.uniform1f(U('_T'), (now - t0) / 1000); g.uniform1f(U('_NV'), nv ? 1 : 0);
+  const view = scare ? scareCam(dt) : [cam, camYaw, camPitch, camRoll];
+  g.uniformMatrix4fv(U('VP'), false, viewProj(view[0], view[1], view[2], canvas.width / canvas.height, view[3]));
+  g.uniform3f(U('_Cam'), ...view[0]); g.uniform1f(U('_T'), (now - t0) / 1000); g.uniform1f(U('_NV'), nv ? 1 : 0);
   g.uniform1f(U('_Omen'), Math.min(1, (ent.omen || 0) * 2, (5 - (ent.omen || 0)) * 2) * (ent.omen > 0 ? 1 : 0)); // fades in and out over half a second
-  g.uniform4f(U('_EntPos'), ent.x, 1.5 - ent.fade * 0.6, ent.z, ent.on ? 1 - Math.min(1, ent.fade / 1.5) : 0); // its black aura
+  g.uniform4f(U('_EntPos'), ent.x, 1.5 - ent.fade * 0.6 + (ent.lift || 0), ent.z, ent.on ? 1 - Math.min(1, ent.fade / 1.5) : 0); // its black aura
   g.clear(g.COLOR_BUFFER_BIT | g.DEPTH_BUFFER_BIT);
   g.bindVertexArray(level.vao); g.drawElements(g.TRIANGLES, level.n, g.UNSIGNED_INT, 0);
-  drawEntity();
+  drawEntity(); drawDoors(dt);
   // VHS pass to the screen
   g.bindFramebuffer(g.FRAMEBUFFER, null); g.viewport(0, 0, canvas.width, canvas.height); g.disable(g.DEPTH_TEST); g.disable(g.CULL_FACE);
   g.useProgram(vhsProg); g.bindVertexArray(null);

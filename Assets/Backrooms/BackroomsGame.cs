@@ -16,7 +16,7 @@ public class BackroomsGame : MonoBehaviour
     public static int Look { get; private set; } = 2; // read by VhsCamera
     public static string PopupText; public static float PopupAt = -10; // VhsCamera shows PopupText mid-screen for a moment
     public static bool CanSearch, HasKey; // key-item prompt and KEY marker, drawn by VhsCamera
-    public struct HideSpot { public Vector3 cam, step; public float yaw; public int kind; } // yaw in degrees, facing out into the room
+    public struct HideSpot { public Vector3 cam, step; public float yaw; public int kind; public Transform door; } // yaw in degrees, facing out into the room
     public static readonly List<HideSpot> HideSpots = new List<HideSpot>();
     public static int NearSpot = -1; // the hiding spot you're standing at (VhsCamera shows HIDE)
     public static bool NightVision; // N or the NIGHT button (VhsCamera): infrared lamp + green NightShot picture, no battery
@@ -27,6 +27,8 @@ public class BackroomsGame : MonoBehaviour
     public bool entityOn = true; // hidden switch for the entity (Entity.cs); off = no entity
     public static bool Started, Easy; // start screen (VhsCamera): NORMAL or EASY (no entity)
     public static void Begin(bool easy) { Easy = easy; Started = true; Time.timeScale = 1; }
+    [Range(0, 1)] public float dimChance = 1 / 30f; // super rare dim runs
+    public static bool Dim;
     public bool debugMode = false; // shows (DEBUG MODE) and the share of rooms explored on the VHS stamp
 
     Material mat;
@@ -88,10 +90,11 @@ public class BackroomsGame : MonoBehaviour
 
     void NewRun()
     {
-        if (level) { Destroy(level); Destroy(mesh); }
+        if (level) { foreach (var mf in level.GetComponentsInChildren<MeshFilter>()) Destroy(mf.sharedMesh); Destroy(level); } // the maze and the locker doors
         look = Random.Range(1, 6); // a random look every run (Update swaps it and pops up the name)
         Seed = Random.Range(0f, 100f);
-        Shader.SetGlobalFloat("_Seed", Seed); // moves the low-power zones, blackouts and wet patches each run
+        Shader.SetGlobalFloat("_Seed", Seed);
+        Dim = Random.value < dimChance; Shader.SetGlobalFloat("_Dim", Dim ? 1 : 0); // super rare: every light at 2-40% // moves the low-power zones, blackouts and wet patches each run
         int grow = growPerRun * run++;
         Tape = run;
         var m = Maze.Generate(Mathf.Min(width + grow, maxSize), Mathf.Min(depth + grow, maxSize), Random.Range(int.MinValue, int.MaxValue), loopChance, out var start, out var exit, out var features);
@@ -210,6 +213,7 @@ public class BackroomsGame : MonoBehaviour
                 c[i] = pt.MultiplyPoint3x4(new Vector3((i & 1) == 0 ? -p.h.x : p.h.x, (i & 2) == 0 ? -p.h.y : p.h.y, (i & 4) == 0 ? -p.h.z : p.h.z));
             Vector3 N(Vector3 v) => pt.MultiplyVector(v).normalized;
             o = 256 + p.mat; // tells the shader to paint it a flat prop colour
+            if (p.h.z == 0) { Quad(c[4], c[5], c[7], c[6], N(Vector3.forward)); return; } // no depth: one face, seen from the front only
             Quad(c[0], c[2], c[6], c[4], N(Vector3.left)); Quad(c[1], c[3], c[7], c[5], N(Vector3.right));
             Quad(c[0], c[1], c[5], c[4], N(Vector3.down)); Quad(c[2], c[3], c[7], c[6], N(Vector3.up));
             Quad(c[0], c[1], c[3], c[2], N(Vector3.back)); Quad(c[4], c[5], c[7], c[6], N(Vector3.forward));
@@ -374,7 +378,21 @@ public class BackroomsGame : MonoBehaviour
                 var at = CellCenter((x, z)) - hn * (s / 2 - WallHalf);
                 var ht = Matrix4x4.TRS(at, Quaternion.LookRotation(hn), Vector3.one);
                 foreach (var part in hide.parts) PropPart(ht, part);
-                HideSpots.Add(new HideSpot { cam = ht.MultiplyPoint3x4(hide.cam), step = at + hn * hide.step, yaw = Quaternion.LookRotation(hn).eulerAngles.y, kind = kind });
+                Transform door = null;
+                if (kind == 0) // the locker door gets its own mesh, turning on its hinge (PlayerController swings it)
+                {
+                    var keep = (verts, norms, masks, tris);
+                    (verts, norms, masks, tris) = (new List<Vector3>(), new List<Vector3>(), new List<Vector2>(), new List<int>());
+                    foreach (var part in Props.LockerDoor) PropPart(Matrix4x4.Translate(-Props.DoorHinge), part);
+                    var pivot = new GameObject("Locker").transform;
+                    pivot.SetParent(level.transform); pivot.SetPositionAndRotation(ht.MultiplyPoint3x4(Props.DoorHinge), Quaternion.LookRotation(hn));
+                    door = new GameObject("Door").transform; door.SetParent(pivot, false);
+                    door.gameObject.AddComponent<MeshFilter>().sharedMesh = Make("LockerDoor");
+                    door.gameObject.AddComponent<MeshRenderer>().sharedMaterial = mat;
+                    var col = door.gameObject.AddComponent<BoxCollider>(); col.center = new Vector3(0.3f, 0.95f, 0); col.size = new Vector3(0.6f, 1.9f, 0.02f);
+                    (verts, norms, masks, tris) = keep;
+                }
+                HideSpots.Add(new HideSpot { cam = ht.MultiplyPoint3x4(hide.cam), step = at + hn * hide.step, yaw = Quaternion.LookRotation(hn).eulerAngles.y, kind = kind, door = door });
             }
 
         // Rare furniture. About half stand normally on the floor; the rest are wrong: tilted and sunk
@@ -444,13 +462,18 @@ public class BackroomsGame : MonoBehaviour
                 Box(x * s, z * s, half + Trim - Seam, half + Trim - Seam, TrimHeight);
             }
 
-        var mesh = new Mesh { name = "Maze" };
-        if (verts.Count > 65535) mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32; // big mazes
-        mesh.SetVertices(verts);
-        mesh.SetNormals(norms);
-        mesh.SetUVs(0, masks);
-        mesh.SetTriangles(tris, 0);
-        mesh.RecalculateBounds();
-        return mesh;
+        return Make("Maze");
+
+        Mesh Make(string name)
+        {
+            var mesh = new Mesh { name = name };
+            if (verts.Count > 65535) mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32; // big mazes
+            mesh.SetVertices(verts);
+            mesh.SetNormals(norms);
+            mesh.SetUVs(0, masks);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateBounds();
+            return mesh;
+        }
     }
 }

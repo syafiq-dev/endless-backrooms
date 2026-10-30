@@ -111,16 +111,28 @@ public static class Props
     public struct Hide { public Part[] parts; public float halfWidth, halfDepth, depth, step; public Vector3 cam; } // cam = your eye when hiding, step = where you step out to (from the wall)
     public static readonly Hide[] Hides =
     {
-        new Hide { halfWidth = 0.3f, halfDepth = 0.25f, depth = 0.25f, cam = new Vector3(0, 1.5f, 0.22f), step = 1.0f, parts = new[] {
-            new Part(0, 0.95f, 0.25f, 0.3f, 0.95f, 0.25f, Metal), new Part(0.22f, 1.0f, 0.515f, 0.012f, 0.06f, 0.015f, Dark),
-            new Part(0, 1.27f, 0.505f, 0.2f, 0.022f, 0.006f, Dark), new Part(0, 1.35f, 0.505f, 0.2f, 0.022f, 0.006f, Dark), new Part(0, 1.43f, 0.505f, 0.2f, 0.022f, 0.006f, Dark), new Part(0, 1.51f, 0.505f, 0.2f, 0.022f, 0.006f, Dark), new Part(0, 1.59f, 0.505f, 0.2f, 0.022f, 0.006f, Dark), new Part(0, 1.67f, 0.505f, 0.2f, 0.022f, 0.006f, Dark), // vent slats in a square peek window
-            new Part(0, 1.715f, 0.507f, 0.215f, 0.015f, 0.005f, Dark), new Part(0, 1.235f, 0.507f, 0.215f, 0.015f, 0.005f, Dark),
-            new Part(-0.215f, 1.475f, 0.507f, 0.015f, 0.24f, 0.005f, Dark), new Part(0.215f, 1.475f, 0.507f, 0.015f, 0.24f, 0.005f, Dark), // window frame
-            new Part(0, 0.625f, 0.49f, 0.29f, 0.625f, 0.004f, Dark), new Part(0, 1.793f, 0.49f, 0.29f, 0.093f, 0.004f, Dark),
-            new Part(-0.245f, 1.475f, 0.49f, 0.045f, 0.225f, 0.004f, Dark), new Part(0.245f, 1.475f, 0.49f, 0.045f, 0.225f, 0.004f, Dark), // inside of the door, around the window
+        new Hide { halfWidth = 0.3f, halfDepth = 0.25f, depth = 0.25f, cam = new Vector3(0, 1.5f, 0.22f), step = 1.2f, parts = new[] { // 1.2: clear of the door as it swings
+            new Part(-0.295f, 0.95f, 0.25f, 0.005f, 0.95f, 0.25f, Metal), new Part(0.295f, 0.95f, 0.25f, 0.005f, 0.95f, 0.25f, Metal),
+            new Part(0, 1.895f, 0.25f, 0.3f, 0.005f, 0.25f, Metal), new Part(0, 0.95f, 0.005f, 0.3f, 0.95f, 0.005f, Metal), // the shell, open at the front
             new Part(-0.29f, 0.95f, 0.25f, 0.004f, 0.95f, 0.25f, Dark), new Part(0.29f, 0.95f, 0.25f, 0.004f, 0.95f, 0.25f, Dark),
-            new Part(0, 1.89f, 0.25f, 0.3f, 0.004f, 0.25f, Dark), new Part(0, 0.95f, 0.01f, 0.3f, 0.95f, 0.004f, Dark) } },
+            new Part(0, 1.89f, 0.25f, 0.3f, 0.004f, 0.25f, Dark), new Part(0, 0.95f, 0.01f, 0.3f, 0.95f, 0.004f, Dark) } }, // dark inside
         new Hide { halfWidth = 0.72f, halfDepth = 0.38f, depth = 0.42f, cam = new Vector3(0.2f, 0.45f, 0.42f), step = 1.3f, parts = KeyItems[0].parts }, // the office desk
+    };
+
+    // The locker's door, in the same space (BackroomsGame gives it its own object so it can swing on the hinge): a sheet with a
+    // square peek window you see out of from inside, vent slats across it, a handle on the left. A part with no depth is one face.
+    public static readonly Vector3 DoorHinge = new Vector3(-0.3f, 0, 0.5f); // local -x is on your right as you face it
+    public const float DoorOpen = 109; // degrees, fully open
+    public static readonly Part[] LockerDoor =
+    {
+        new Part(0, 0.625f, 0.497f, 0.3f, 0.625f, 0.003f, Metal), new Part(0, 1.8f, 0.497f, 0.3f, 0.1f, 0.003f, Metal),
+        new Part(-0.25f, 1.475f, 0.497f, 0.05f, 0.225f, 0.003f, Metal), new Part(0.25f, 1.475f, 0.497f, 0.05f, 0.225f, 0.003f, Metal),
+        new Part(0.22f, 1.0f, 0.515f, 0.012f, 0.06f, 0.015f, Dark), new Part(0, 1.475f, 0.497f, 0.2f, 0.225f, 0, Metal), // handle; behind the slats a sheet seen only from outside
+        new Part(0, 1.27f, 0.505f, 0.2f, 0.022f, 0.006f, Dark), new Part(0, 1.35f, 0.505f, 0.2f, 0.022f, 0.006f, Dark), new Part(0, 1.43f, 0.505f, 0.2f, 0.022f, 0.006f, Dark), new Part(0, 1.51f, 0.505f, 0.2f, 0.022f, 0.006f, Dark), new Part(0, 1.59f, 0.505f, 0.2f, 0.022f, 0.006f, Dark), new Part(0, 1.67f, 0.505f, 0.2f, 0.022f, 0.006f, Dark), // vent slats in a square peek window
+        new Part(0, 1.715f, 0.507f, 0.215f, 0.015f, 0.005f, Dark), new Part(0, 1.235f, 0.507f, 0.215f, 0.015f, 0.005f, Dark),
+        new Part(-0.215f, 1.475f, 0.507f, 0.015f, 0.24f, 0.005f, Dark), new Part(0.215f, 1.475f, 0.507f, 0.015f, 0.24f, 0.005f, Dark), // window frame
+        new Part(0, 0.625f, 0.49f, 0.29f, 0.625f, 0.004f, Dark), new Part(0, 1.793f, 0.49f, 0.29f, 0.093f, 0.004f, Dark),
+        new Part(-0.245f, 1.475f, 0.49f, 0.045f, 0.225f, 0.004f, Dark), new Part(0.245f, 1.475f, 0.49f, 0.045f, 0.225f, 0.004f, Dark), // inside of the door, around the window
     };
 
     // How far each item reaches from its centre on the floor, for spacing (browser version uses it for collisions).

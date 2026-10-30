@@ -27,6 +27,7 @@ Shader "Backrooms/Surface V3"
             float _Seed;  // per run, moves the low-power zones
             float _NV;    // 1 = night vision: an infrared lamp on the camera (VhsCamera.cs)
             float4 _ExitPos; // the EXIT sign, whose red glow lights the dark around it
+            float _Dim;      // 1 on a super rare dim run: every light at 2-40% (BackroomsGame.cs)
             float _Omen;     // 0-1: the lights around you stutter and dim for a few seconds, a warning before the entity (Entity.cs)
             float4 _EntPos;  // the entity's chest (xyz) and how strong its black aura is (w, 0 = no entity) (Entity.cs)
             // Mapped in world space (metres), so no UVs needed. Textures from the 2022 project.
@@ -263,6 +264,9 @@ Shader "Backrooms/Surface V3"
 
                 float3 lightCol = lerp(float3(0.9, 0.85, 0.6), float3(0.92, 1.0, 0.9), power); // cold fluorescent tubes // low power runs warm
                 float3 col = albedo * lightCol * (0.45 * amb + direct * 1.6) * ao + lightCol * emissive * on;
+                // Dim runs: the whole map on failing power, each area somewhere between 2% and 40%, drifting smoothly.
+                float dimK = lerp(1, lerp(0.02, 0.4, vnoise(p.xz / s * 0.6 + _Seed * 3.1 + 20)), _Dim);
+                col *= dimK;
                 // The omen: within ~12 m of you the lights stutter between dim and dimmer.
                 float stutter = hash(float2(floor(t * 13), 7.3)) > 0.45 ? 0.35 : 0.8;
                 col *= 1 - _Omen * smoothstep(14, 5, length(_WorldSpaceCameraPos - wpos)) * (1 - stutter);
@@ -284,7 +288,7 @@ Shader "Backrooms/Surface V3"
                 float3 ea = _WorldSpaceCameraPos + rd * saturate(dot(_EntPos.xyz - _WorldSpaceCameraPos, rd) / dot(rd, rd)) - _EntPos.xyz;
                 ea.y *= 0.55; // taller than it is wide
                 float aura = _EntPos.w * exp(-dot(ea, ea) * 1.6) * (0.7 + 0.3 * vnoise(wpos.xz * 4 + wpos.y * 3 + t * 3)); // smoky edge
-                return lerp(_FogColor.rgb * lerp(0.03, 1, saturate(amb * 1.2)) * (1 + _NV * 4), col, exp(-_FogDensity * dCam)) * (1 - 0.95 * aura);
+                return lerp(_FogColor.rgb * dimK * lerp(0.03, 1, saturate(amb * 1.2)) * (1 + _NV * 4), col, exp(-_FogDensity * dCam)) * (1 - 0.95 * aura);
             }
 
             half4 frag(Varyings i) : SV_Target

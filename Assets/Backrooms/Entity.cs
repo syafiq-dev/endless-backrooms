@@ -25,6 +25,15 @@ public class Entity : MonoBehaviour
     bool sawHide, wasHidden; // you went into hiding while it could see you
     float linger; // how long it has stood in your room looking for you
     AudioClip slam;
+    // Caught: a jumpscare (one of three, at random), then a hard cut to black and TAPE ENDS (same as the browser build).
+    // 0 lunge: it snaps into the lens. 1 knocked down: the camera hits the floor and it leans over you. 2 strobe: it flickers in and out.
+    static readonly float[] ScareLen = { 0.75f, 1.2f, 1.0f };
+    public static bool Flash;      // strobe scare: this frame is black (VhsCamera)
+    public static float Blackout;  // seconds of black after the cut (VhsCamera)
+    int scareKind = -1;
+    float scareT, scareYaw;
+    Vector3 scareDir;
+    AudioClip[] screams;
 
     public void Init(BackroomsGame g, Transform p, Material mat, float cellSize)
     {
@@ -40,6 +49,7 @@ public class Entity : MonoBehaviour
         crackle = p.gameObject.AddComponent<AudioSource>();
         crackle.clip = MakeCrackle(); crackle.loop = true; crackle.volume = 0; crackle.Play();
         slam = MakeSlam();
+        screams = new[] { MakeScreech(0), MakeScreech(1), MakeScreech(2) };
     }
 
     public void NewRun(int[,] maze)
@@ -50,7 +60,9 @@ public class Entity : MonoBehaviour
 
     void Update()
     {
+        Blackout = Mathf.Max(0, Blackout - Time.unscaledDeltaTime);
         if (m == null) return;
+        if (scareKind >= 0) { Scare(); return; }
         Shader.SetGlobalVector("_EntPos", on ? new Vector4(body.position.x, 1.5f + body.position.y, body.position.z, 1 - Mathf.Min(1, fade / 1.5f)) : Vector4.zero); // its black aura
         // The tape breaks up (VHS shaders' _Danger) and crackles as it closes in: 0 past 15 m, 1 at 2 m.
         float danger = on ? Mathf.Clamp01((15 - Vector2.Distance(new Vector2(body.position.x, body.position.z), new Vector2(player.position.x, player.position.z))) / 13) * (1 - Mathf.Min(1, fade / 1.5f)) : 0;
@@ -125,7 +137,61 @@ public class Entity : MonoBehaviour
         if (toPlayer.sqrMagnitude > 0.001f) body.rotation = Quaternion.LookRotation(toPlayer);
         drone.volume = Mathf.Min(0.9f, 6 / (toPlayer.magnitude + 2)) * (1 - Mathf.Min(1, fade)); // a low growl that swells as it closes in
         if (on && !fooled && toPlayer.magnitude < reach + (hidden ? 0.6f : 0)) // it reaches into your hiding spot
-            { on = false; body.gameObject.SetActive(false); game.Caught(); }
+            StartScare();
+    }
+
+    void StartScare()
+    {
+        scareKind = Random.Range(0, 3); scareT = 0; fade = 0;
+        var d = body.position - player.position; d.y = 0;
+        scareDir = d.sqrMagnitude > 0.0001f ? d.normalized : player.forward;
+        scareYaw = player.eulerAngles.y;
+        sfx.PlayOneShot(screams[scareKind], 1f);
+        PlayerController.Scaring = true;
+    }
+
+    void Scare()
+    {
+        scareT += Time.deltaTime;
+        float t = scareT; int k = scareKind;
+        float Ease(float x) => 1 - Mathf.Pow(1 - Mathf.Clamp01(x), 3);
+        float face = Mathf.Atan2(scareDir.x, scareDir.z) * Mathf.Rad2Deg;
+        scareYaw = Mathf.LerpAngle(scareYaw, face, Mathf.Min(1, Time.deltaTime * 25)); // snap round to face it
+        float dist, lift = -0.6f, y = 1.5f, pitch = 0, roll = 0;
+        Flash = false;
+        if (k == 0) { dist = 1.3f - 1.05f * Ease(t / 0.45f); roll = Mathf.Sin(t * 80) * 4 * Mathf.Min(1, t / 0.2f); pitch = Mathf.Sin(t * 63) * 2.3f; }
+        else if (k == 1) { float f = Ease(t / 0.3f); dist = 1.0f - 0.35f * Ease((t - 0.3f) / 0.8f); lift = 0; y = 1.5f - 1.25f * f; roll = 75 * f + Mathf.Sin(t * 50) * 1.7f; pitch = -57 * f; }
+        else { dist = 0.9f - 0.5f * Ease(t / 0.8f); roll = Mathf.Sin(t * 40) * 3; Flash = Mathf.FloorToInt(t / 0.1f) % 2 == 1; }
+        var pp = player.position;
+        body.gameObject.SetActive(true);
+        body.position = new Vector3(pp.x, lift, pp.z) + scareDir * dist;
+        body.rotation = Quaternion.Euler(0, face + 180 + (k == 2 ? Mathf.Sin(t * 90) * 11 : 0), 0);
+        Pose(mesh, Time.time);
+        PlayerController.ScareView = new Vector4(y, scareYaw, pitch, roll); // eye height, yaw, pitch (down +), roll in degrees
+        Shader.SetGlobalVector("_EntPos", new Vector4(body.position.x, 1.5f + lift, body.position.z, 1));
+        Shader.SetGlobalFloat("_Danger", 1);
+        if (t < ScareLen[k]) return;
+        scareKind = -1; Flash = false; Blackout = 1.3f; on = false; // the hard cut
+        PlayerController.Scaring = false;
+        body.gameObject.SetActive(false);
+        Shader.SetGlobalFloat("_Danger", 0);
+        game.Caught();
+    }
+
+    // Its scream: three detuned saws shrieking and falling, wobbling fast, with noise, clipped hard. The strobe one stutters.
+    static AudioClip MakeScreech(int kind)
+    {
+        int sr = AudioSettings.outputSampleRate; float len = ScareLen[kind]; int n = (int)(sr * len);
+        var d = new float[n]; float[] f0 = { 520, 780 * 1.04f, 1170 * 0.94f }; var ph = new float[3];
+        for (int i = 0; i < n; i++)
+        {
+            float t = (float)i / sr, env = Mathf.Min(1, t / 0.03f) * Mathf.Clamp01((len - t) / 0.05f);
+            float gate = kind == 2 && Mathf.FloorToInt(t / 0.1f) % 2 == 1 ? 0.08f : 1;
+            float s = Random.Range(-0.5f, 0.5f);
+            for (int j = 0; j < 3; j++) { ph[j] += f0[j] * Mathf.Pow(0.45f, t / len) * (1 + 0.06f * Mathf.Sin(2 * Mathf.PI * 23 * t)) / sr; s += 2 * (ph[j] % 1) - 1; }
+            d[i] = (float)System.Math.Tanh(s * 2) * 0.9f * env * gate;
+        }
+        var clip = AudioClip.Create("Screech" + kind, n, 1, sr, false); clip.SetData(d, 0); return clip;
     }
 
     // A stick man of black wire, crooked and alien: hunched, head jutting and tilted, one shoulder low, arms hanging past the

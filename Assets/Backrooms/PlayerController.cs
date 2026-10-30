@@ -16,6 +16,8 @@ public class PlayerController : MonoBehaviour
     public float runTime = 50, runRefill = 25;
     public static float Energy = 1;
     public static bool Winded;
+    public static bool Scaring; // the entity's jumpscare has the camera (Entity.cs)
+    public static Vector4 ScareView; // eye height, yaw, pitch, roll
     public static int Hidden = -1; // index into BackroomsGame.HideSpots while you're in one (or getting in or out)
     public static int HideDir; // 1 = getting in, -1 = getting out, 0 = still
     public static bool InSpot => Hidden >= 0 && HideDir == 0; // all the way in
@@ -81,6 +83,14 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
+        if (Scaring)
+        {
+            cc.enabled = false; // BackroomsGame.NewRun turns it back on
+            transform.SetPositionAndRotation(new Vector3(transform.position.x, ScareView.x - camY, transform.position.z), Quaternion.Euler(0, ScareView.y, 0));
+            aimYaw = yaw = ScareView.y; yawSpin = 0;
+            cam.localEulerAngles = new Vector3(ScareView.z, 0, ScareView.w); cam.localPosition = new Vector3(0, camY, 0);
+            return;
+        }
         Vector2 move = Vector2.zero, look = Vector2.zero;
         bool wantRun = RunHeld || Keyboard.current != null && Keyboard.current.leftShiftKey.isPressed; // RUN button (VhsCamera) or Shift
         bool running = wantRun && !Winded;
@@ -135,6 +145,13 @@ public class PlayerController : MonoBehaviour
                 if (HideDir != 0) { aimYaw = yaw = HideDir < 0 ? h.yaw : ry; yawSpin = 0; pitch = pitchView = 0; pitchSpin = 0; transform.rotation = Quaternion.Euler(0, yaw, 0); }
                 else { float a = h.kind == 0 ? 17 : 57; aimYaw = h.yaw + Mathf.Clamp(Mathf.DeltaAngle(h.yaw, aimYaw), -a, a); pitch = Mathf.Clamp(pitch, -17, 17); } // peek out, but stay in
             }
+        }
+        // Locker doors swing out on their right-hand hinge while you get in or out (flung open to get out), and shut behind you.
+        for (int i = 0; i < BackroomsGame.HideSpots.Count; i++)
+        {
+            var door = BackroomsGame.HideSpots[i].door; if (!door) continue;
+            bool open = i == Hidden && (HideDir > 0 ? hideT > 0.3f && hideT < 0.85f : HideDir < 0);
+            door.localRotation = Quaternion.Slerp(door.localRotation, Quaternion.Euler(0, open ? -Props.DoorOpen : 0, 0), 1 - Mathf.Exp(-(open ? HideDir < 0 ? 10 : 4 : 5) * Time.deltaTime));
         }
         if (Mathf.Abs(Mathf.DeltaAngle(transform.eulerAngles.y, yaw)) > 0.01f) aimYaw = yaw = transform.eulerAngles.y; // something else turned us (new run): snap
         float dt = Mathf.Min(Time.deltaTime, 0.05f);

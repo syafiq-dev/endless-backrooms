@@ -66,6 +66,7 @@ public class VhsCamera : MonoBehaviour
     // Camcorder overlay: PLAY in the corner, time and date bottom-left (year pinned to 1996 for the found-footage feel).
     void OnGUI()
     {
+        if (Entity.Flash || Entity.Blackout > 0) { GUI.color = Color.black; GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture); GUI.color = Color.white; } // the jumpscare's black frames and the cut
         if (!BackroomsGame.Started) // start screen: title, then NORMAL or EASY (no entity)
         {
             lookStyle ??= new GUIStyle(GUI.skin.label) { fontSize = Screen.height / 10, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, normal = { textColor = new Color(1f, 1f, 0.92f, 0.95f) } };
@@ -129,7 +130,7 @@ public class VhsCamera : MonoBehaviour
         {
             debugStyle ??= new GUIStyle(style) { normal = { textColor = new Color(0.3f, 1f, 0.35f, 0.95f) } };
             debugStyle.fontSize = style.fontSize / 2; // half the stamp's size
-            GUI.Label(new Rect(m, Screen.height - m - style.fontSize * 3.3f, Screen.width, style.fontSize), "(DEBUG MODE) EXPLORED " + Mathf.FloorToInt(Entity.Explored * 100) + "%", debugStyle); // slam at 20, lights stutter at 23, entity at 25
+            GUI.Label(new Rect(m, Screen.height - m - style.fontSize * 3.3f, Screen.width, style.fontSize), "(DEBUG MODE) EXPLORED " + Mathf.FloorToInt(Entity.Explored * 100) + "%" + (BackroomsGame.Dim ? " DIM MAP" : ""), debugStyle); // slam at 20, lights stutter at 23, entity at 25
         }
     }
 
